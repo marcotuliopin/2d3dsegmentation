@@ -5,7 +5,10 @@ channels:
 dependencies:
   - _libgcc_mutex=0.1=conda_forge
   - _openmp_mutex=4.5=2_gnu
+  - albucore=0.0.23=pyhd8ed1ab_0
+  - albumentations=2.0.5=pyhd8ed1ab_0
   - alsa-lib=1.2.14=hb9d3cd8_0
+  - annotated-types=0.7.0=pyhd8ed1ab_1
   - aom=3.9.1=hac33072_0
   - asttokens=3.0.0=pyhd8ed1ab_1
   - attr=2.5.1=h166bdaf_1
@@ -38,6 +41,8 @@ dependencies:
   - debugpy=1.8.14=py313h46c70d0_0
   - decorator=5.2.1=pyhd8ed1ab_0
   - double-conversion=3.3.1=h5888daf_0
+  - eval-type-backport=0.2.2=pyhd8ed1ab_0
+  - eval_type_backport=0.2.2=pyha770c72_0
   - exceptiongroup=1.2.2=pyhd8ed1ab_1
   - executing=2.2.0=pyhd8ed1ab_0
   - expat=2.7.0=h5888daf_0
@@ -221,6 +226,7 @@ dependencies:
   - openssl=3.5.0=h7b32b05_1
   - optree=0.15.0=py313h33d0bda_0
   - packaging=25.0=pyh29332c3_1
+  - pandas=2.2.3=py313ha87cce1_3
   - pango=1.56.3=h861ebed_0
   - parso=0.8.4=pyhd8ed1ab_1
   - pcre2=10.44=hc749103_2
@@ -240,36 +246,46 @@ dependencies:
   - py-opencv=4.11.0=qt6_py313h0a6ee6c_602
   - pybind11=2.13.6=pyh1ec8472_2
   - pybind11-global=2.13.6=pyh415d2e4_2
+  - pydantic=2.11.4=pyh3cfb1c2_0
+  - pydantic-core=2.33.2=py313h4b2b08d_0
   - pygments=2.19.1=pyhd8ed1ab_0
   - pyparsing=3.2.3=pyhd8ed1ab_1
   - pyside6=6.8.3=py313h5f61773_0
   - python=3.13.3=hf636f53_101_cp313
   - python-dateutil=2.9.0.post0=pyhff2d567_1
+  - python-tzdata=2025.2=pyhd8ed1ab_0
   - python_abi=3.13=7_cp313
   - pytorch=2.6.0=cuda126_generic_py313_h8305402_200
+  - pytz=2025.2=pyhd8ed1ab_0
+  - pyyaml=6.0.2=py313h8060acc_2
   - pyzmq=26.4.0=py313h8e95178_0
   - qhull=2020.2=h434a139_5
   - qt6-main=6.8.3=h588cce1_0
   - rav1e=0.7.1=h8fae777_3
   - rdma-core=57.0=h5888daf_0
   - readline=8.2=h8c095d6_2
+  - scipy=1.15.2=py313h86fcf2b_0
   - sdl2=2.32.54=h3f2d84a_0
   - sdl3=3.2.12=he3e324a_2
   - setuptools=80.1.0=pyhff2d567_0
+  - simsimd=6.4.3=py313h536fd9c_0
   - six=1.17.0=pyhd8ed1ab_0
   - sleef=3.8=h1b44611_0
   - snappy=1.2.1=h8bd8927_1
   - stack_data=0.6.3=pyhd8ed1ab_1
+  - stringzilla=3.12.5=py313h536fd9c_0
   - svt-av1=3.0.2=h5888daf_0
   - sympy=1.14.0=pyh2585a3b_105
   - tbb=2022.1.0=h4ce085d_0
   - tk=8.6.13=noxft_h4845f30_101
+  - torchinfo=1.8.0=pyhd8ed1ab_1
   - torchvision=0.21.0=cuda126_py313_h592f0f3_1
   - torchvision-extra-decoders=0.0.2=py313h903ddcc_2
   - tornado=6.4.2=py313h536fd9c_0
   - traitlets=5.14.3=pyhd8ed1ab_1
   - triton=3.2.0=cuda126py313h46f6bd1_1
   - typing-extensions=4.13.2=h0e9735f_0
+  - typing-inspection=0.4.0=pyhd8ed1ab_0
   - typing_extensions=4.13.2=pyh29332c3_0
   - tzdata=2025b=h78e105d_0
   - wayland=1.23.1=h3e06ad9_1
@@ -300,6 +316,7 @@ dependencies:
   - xorg-libxscrnsaver=1.2.4=hb9d3cd8_0
   - xorg-libxtst=1.2.5=hb9d3cd8_3
   - xorg-libxxf86vm=1.1.6=hb9d3cd8_0
+  - yaml=0.2.5=h7f98852_2
   - zeromq=4.3.5=h3b0a872_7
   - zipp=3.21.0=pyhd8ed1ab_1
   - zstd=1.5.7=hb8e6e7a_2
