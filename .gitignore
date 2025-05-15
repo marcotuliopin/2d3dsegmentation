@@ -1,1 +1,5 @@
 checkpoints
+experiments
+data
+*.png
+*.pkl
