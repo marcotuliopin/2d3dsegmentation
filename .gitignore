@@ -1,5 +1,8 @@
 checkpoints
-experiments
 data
+experiments
+plots
+results
+*__pycache__
 *.png
 *.pkl
