@@ -9,7 +9,7 @@ from config import DATA_CONFIG, TRAINING_CONFIG, MODEL_CONFIGS, OUTPUT_CONFIG
 from models.segmentation import get_model
 from utils.datasets import SunRGBDDataset
 from utils.transforms import get_training_transforms, get_validation_transforms
-from utils.training import CheckpointSaver, EarlyStopping, SegmentationTrainer
+from utils.training import CheckpointSaver, EarlyStopping, FocalLoss, SegmentationTrainer
 from utils.visualization import plot_loss_curves
 
 
@@ -65,6 +65,7 @@ def main():
     train_loader = DataLoader(
         train_dataset, 
         batch_size=args.batch_size, 
+        drop_last=True,
         shuffle=True, 
         num_workers=TRAINING_CONFIG['num_workers']
     )
@@ -72,6 +73,7 @@ def main():
     val_loader = DataLoader(
         val_dataset, 
         batch_size=args.batch_size, 
+        drop_last=True,
         shuffle=False, 
         num_workers=TRAINING_CONFIG['num_workers']
     )
@@ -87,6 +89,7 @@ def main():
     
     # Training configurations
     criterion = nn.CrossEntropyLoss()
+    criterion = FocalLoss(alpha=0.75, gamma=2.0)
     optimizer = torch.optim.AdamW(
         model.parameters(), 
         lr=args.lr, 

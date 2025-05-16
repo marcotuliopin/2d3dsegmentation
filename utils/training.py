@@ -1,5 +1,7 @@
 import os
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from tqdm import tqdm
 
 class CheckpointSaver:
@@ -89,3 +91,16 @@ class SegmentationTrainer:
                 running_loss += loss.item()
                 
         return running_loss / len(data_loader)
+
+
+class FocalLoss(nn.Module):
+    def __init__(self, alpha=0.25, gamma=2.0):
+        super().__init__()
+        self.alpha = alpha  # Balances positive/negative
+        self.gamma = gamma  # Focuses on hard examples
+
+    def forward(self, inputs, targets):
+        ce_loss = F.cross_entropy(inputs, targets, reduction='none')
+        pt = torch.exp(-ce_loss)  # Softmax probability of true class
+        focal_loss = (self.alpha * (1-pt)**self.gamma * ce_loss)
+        return focal_loss.mean()
