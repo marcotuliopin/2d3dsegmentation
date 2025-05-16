@@ -4,12 +4,12 @@ ROOT_DIR = "data/SUN_RGBD/"
 
 DATA_CONFIG = {
     "root_dir": ROOT_DIR,
-    "train_file": os.path.join(ROOT_DIR, "train13.txt"),
-    "val_file": os.path.join(ROOT_DIR, "split/val13.txt"),
-    "test_file": os.path.join(ROOT_DIR, "split/test13.txt"),
-    "num_classes": 14,
+    "train_file": os.path.join(ROOT_DIR, "train37.txt"),
+    "val_file": os.path.join(ROOT_DIR, "split/val37.txt"),
+    "test_file": os.path.join(ROOT_DIR, "split/test37.txt"),
+    "num_classes": 38,
     "image_height": 256,
-    "image_width": 352,
+    "image_width": 256,
 }
 
 TRAINING_CONFIG = {
@@ -18,7 +18,7 @@ TRAINING_CONFIG = {
     "lr": 1e-4,
     "weight_decay": 1e-3,
     "num_epochs": 100,
-    "patience": 10,
+    "patience": 7,
     "min_delta": 5e-4,
     "device": "cuda",
 }

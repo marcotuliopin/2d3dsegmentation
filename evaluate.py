@@ -72,11 +72,14 @@ def test_model(model, data_loader, device, num_classes=14):
     mean_iou = np.mean(class_iou)
     mean_pixel_acc = total_pixel_acc / total_samples
     mean_dice = total_dice / total_samples
+    class_freq = np.sum(confusion_matrix, axis=1) / np.sum(confusion_matrix)
+    weighted_iou = np.sum(class_freq * class_iou)
     
     print(f"Test metrics:")
     print(f"  Mean IoU: {mean_iou:.4f}")
     print(f"  Mean Dice Coefficient: {mean_dice:.4f}")
     print(f"  Pixel Accuracy: {mean_pixel_acc:.4f}")
+    print(f"  Weighted IoU: {weighted_iou:.4f}")
     
     print("\nIoU por classe:")
     for i in range(num_classes):
@@ -84,6 +87,7 @@ def test_model(model, data_loader, device, num_classes=14):
     
     return {
         'mean_iou': mean_iou,
+        'weighted_iou': weighted_iou,
         'mean_dice': mean_dice,
         'pixel_acc': mean_pixel_acc,
         'class_iou': class_iou,
@@ -160,6 +164,7 @@ def main():
     
     with open(os.path.join(results_dir, 'test_results.txt'), 'w') as f:
         f.write(f"Mean IoU: {results['mean_iou']:.4f}\n")
+        f.write(f"Weighted IoU: {results['weighted_iou']:.4f}\n")
         f.write(f"Mean Dice: {results['mean_dice']:.4f}\n")
         f.write(f"Pixel Accuracy: {results['pixel_acc']:.4f}\n")
         f.write(f"F1 Score: {results['mean_f1']:.4f}\n")
@@ -169,6 +174,7 @@ def main():
             
     print(f"Final test results:")
     print(f"Mean IoU: {results['mean_iou']:.4f}")
+    print(f"Weighted IoU: {results['weighted_iou']:.4f}")
     print(f"Mean Dice: {results['mean_dice']:.4f}")
     print(f"Pixel acc: {results['pixel_acc']:.4f}")
     print(f"F1 Score: {results['mean_f1']:.4f}")
