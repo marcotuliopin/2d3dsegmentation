@@ -4,9 +4,8 @@ from albumentations.pytorch import ToTensorV2
 
 def get_training_transforms(height=256, width=352):
     return A.Compose([
-        A.Resize(height=height, width=width, interpolation=cv2.INTER_NEAREST),
-        A.HorizontalFlip(p=0.5),
-        A.VerticalFlip(p=0.5),
+        A.Resize(height=height, width=width, interpolation=cv2.INTER_LINEAR),
+        A.HorizontalFlip(p=0.3),
         A.GridDistortion(p=0.4),
         A.RandomBrightnessContrast(p=0.2),
         A.Affine(
