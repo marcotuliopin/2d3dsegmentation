@@ -4,6 +4,7 @@ import pickle
 import argparse
 import numpy as np
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from config import DATA_CONFIG, OUTPUT_CONFIG, TRAINING_CONFIG
 from models.segmentation import get_model
@@ -16,7 +17,7 @@ from utils.metrics import evaluate_batch
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Avaliação do modelo de segmentação')
-    parser.add_argument('n', '--exp-name', type=str, required=True,
+    parser.add_argument('-n', '--exp-name', type=str, required=True,
                         help='Nome do experimento para avaliar')
     parser.add_argument('--checkpoint', type=str, default='latest',
                         help='Nome do checkpoint específico (ou "latest")')
@@ -26,7 +27,7 @@ def parse_args():
 def get_latest_checkpoint(checkpoint_dir):
     checkpoints = [f for f in os.listdir(checkpoint_dir) if f.endswith('.pth')]
     if not checkpoints:
-        raise FileNotFoundError(f"Nenhum checkpoint encontrado em {checkpoint_dir}")
+        raise FileNotFoundError(f"No checkpoint found at {checkpoint_dir}")
     
     sorted_checkpoints = sorted(checkpoints, key=lambda x: int(x.split('_')[-1].split('.')[0]))
     return os.path.join(checkpoint_dir, sorted_checkpoints[-1])
@@ -42,7 +43,7 @@ def test_model(model, data_loader, device, num_classes=14):
     total_samples = 0
     
     with torch.no_grad():
-        for images, masks in data_loader:
+        for images, masks in tqdm(data_loader):
             images = images.to(device)
             masks = masks.to(device)
             
@@ -64,11 +65,15 @@ def test_model(model, data_loader, device, num_classes=14):
                                              np.sum(confusion_matrix, axis=0) - 
                                              np.diag(confusion_matrix) + 1e-7)
     
+    precision = np.diag(confusion_matrix) / (np.sum(confusion_matrix, axis=0) + 1e-7)
+    recall = np.diag(confusion_matrix) / (np.sum(confusion_matrix, axis=1) + 1e-7)
+    f1_per_class = 2 * (precision * recall) / (precision + recall + 1e-7)
+    mean_f1 = np.mean(f1_per_class)
     mean_iou = np.mean(class_iou)
     mean_pixel_acc = total_pixel_acc / total_samples
     mean_dice = total_dice / total_samples
     
-    print(f"Métricas de teste:")
+    print(f"Test metrics:")
     print(f"  Mean IoU: {mean_iou:.4f}")
     print(f"  Mean Dice Coefficient: {mean_dice:.4f}")
     print(f"  Pixel Accuracy: {mean_pixel_acc:.4f}")
@@ -82,7 +87,11 @@ def test_model(model, data_loader, device, num_classes=14):
         'mean_dice': mean_dice,
         'pixel_acc': mean_pixel_acc,
         'class_iou': class_iou,
-        'confusion_matrix': confusion_matrix
+        'confusion_matrix': confusion_matrix,
+        'precision': precision,
+        'recall': recall,
+        'f1_per_class': f1_per_class,
+        'mean_f1': mean_f1,
     }
 
 
@@ -90,7 +99,7 @@ def main():
     args = parse_args()
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Usando dispositivo: {device}")
+    print(f"Using device: {device}")
     
     exp_dir = os.path.join(OUTPUT_CONFIG['checkpoints_dir'], args.exp_name)
     
@@ -149,10 +158,20 @@ def main():
     vis_path = os.path.join(plots_dir, 'predictions.png')
     visualize_predictions(model, test_loader, device, num_samples=4, save_path=vis_path)
     
-    print(f"Resultados finais do teste:")
-    print(f"IoU médio: {results['mean_iou']:.4f}")
-    print(f"Dice médio: {results['mean_dice']:.4f}")
-    print(f"Acurácia de pixel: {results['pixel_acc']:.4f}")
+    with open(os.path.join(results_dir, 'test_results.txt'), 'w') as f:
+        f.write(f"Mean IoU: {results['mean_iou']:.4f}\n")
+        f.write(f"Mean Dice: {results['mean_dice']:.4f}\n")
+        f.write(f"Pixel Accuracy: {results['pixel_acc']:.4f}\n")
+        f.write(f"F1 Score: {results['mean_f1']:.4f}\n")
+        f.write("\nIoU por classe:\n")
+        for i in range(config['num_classes']):
+            f.write(f"  Classe {i}: {results['class_iou'][i]:.4f}\n")
+            
+    print(f"Final test results:")
+    print(f"Mean IoU: {results['mean_iou']:.4f}")
+    print(f"Mean Dice: {results['mean_dice']:.4f}")
+    print(f"Pixel acc: {results['pixel_acc']:.4f}")
+    print(f"F1 Score: {results['mean_f1']:.4f}")
 
 if __name__ == "__main__":
     main()
