@@ -1,21 +1,34 @@
 import os
 
-ROOT_DIR = "data/SUN_RGBD/"
+ROOT_DIR = {
+    "sun_rgbd": "data/SUN_RGBD",
+    "nyu_depth_v2": "data/NYUDepthv2_seg/data"
+}
 
 DATA_CONFIG = {
-    "root_dir": ROOT_DIR,
-    "train_file": os.path.join(ROOT_DIR, "train37.txt"),
-    "val_file": os.path.join(ROOT_DIR, "split/val37.txt"),
-    "test_file": os.path.join(ROOT_DIR, "split/test37.txt"),
-    "num_classes": 38,
-    "image_height": 256,
-    "image_width": 256,
+    "sun_rgbd": {
+        "root_dir": ROOT_DIR["sun_rgbd"],
+        "train_file": os.path.join(ROOT_DIR["sun_rgbd"], "train37.txt"),
+        "val_file": os.path.join(ROOT_DIR["sun_rgbd"], "split/val37.txt"),
+        "test_file": os.path.join(ROOT_DIR["sun_rgbd"], "split/test37.txt"),
+        "num_classes": 38,
+        "image_height": 256,
+        "image_width": 256,
+    },
+    "nyu_depth_v2": {
+        "root_dir": ROOT_DIR["nyu_depth_v2"],
+        "train_file": os.path.join(ROOT_DIR["nyu_depth_v2"], "train.parquet"),
+        "test_file": os.path.join(ROOT_DIR["nyu_depth_v2"], "test.parquet"),
+        "num_classes": 38,
+        "image_height": 256,
+        "image_width": 256,
+    }
 }
 
 TRAINING_CONFIG = {
     "batch_size": 4,
     "num_workers": 4,
-    "lr": 1e-4,
+    "lr": 5e-5,
     "weight_decay": 1e-3,
     "num_epochs": 100,
     "patience": 7,
@@ -26,19 +39,19 @@ TRAINING_CONFIG = {
 MODEL_CONFIGS = {
     "fcn_resnet50": {
         "pretrained": False,
-        "dropout": 0.5,
+        "dropout": 0.2,
     },
     "fcn_resnet101": {
         "pretrained": False,
-        "dropout": 0.5,
+        "dropout": 0.22,
     },
     "deeplabv3_resnet50": {
         "pretrained": False,
-        "dropout": 0.5,
+        "dropout": 0.2,
     },
     "deeplabv3_resnet101": {
         "pretrained": False,
-        "dropout": 0.5,
+        "dropout": 0.2,
     },
 }
 
