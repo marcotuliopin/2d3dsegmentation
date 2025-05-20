@@ -116,3 +116,59 @@ def visualize_predictions(model, data_loader, device, num_samples=5, save_path=N
         print(f"Visualizações salvas em: {save_path}")
     else:
         plt.show()
+    
+    
+def visualize_image(image_path, title='Image', save_path=None):
+    image = plt.imread(image_path)
+    plt.figure(figsize=(10, 6))
+    plt.imshow(image)
+    plt.title(title)
+    plt.axis('off')
+    
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"Imagem salva em: {save_path}")
+    else:
+        plt.show()
+
+
+def print_pair_image_label(image, label) -> None:
+    unique_classes = np.unique(np.array(label))
+    
+    print("Image shape:", np.array(image).shape)
+    print("Label shape:", np.array(label).shape)
+    
+    # Configurar a figura
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    
+    # Imagem RGB
+    axes[0].imshow(image)
+    axes[0].set_title("RGB Image")
+    axes[0].axis('off')
+    
+    # Imagem de segmentação
+    seg_img = axes[1].imshow(label, cmap="tab20")
+    axes[1].set_title("Segmentation Mask")
+    axes[1].axis('off')
+    
+    # Criar legenda com cores para cada classe
+    cmap = plt.cm.tab20
+    norm = plt.Normalize(vmin=0, vmax=19)  # tab20 tem 20 cores
+    
+    # Criar patches para a legenda
+    legend_patches = []
+    for class_id in unique_classes:
+        color = cmap(norm(class_id % 20))  # Usar módulo 20 para evitar erros se houver mais de 20 classes
+        legend_patches.append(plt.Rectangle((0, 0), 1, 1, fc=color, label=f"Class {class_id}"))
+    
+    # Adicionar legenda fora da imagem
+    fig.legend(
+        handles=legend_patches,
+        loc='center right', 
+        title="Classes",
+        bbox_to_anchor=(1.1, 0.5),
+        fontsize=8
+    )
+    
+    plt.tight_layout()
+    plt.show()
