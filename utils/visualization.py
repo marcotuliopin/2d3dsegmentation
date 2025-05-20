@@ -9,19 +9,19 @@ def plot_loss_curves(train_losses, val_losses, save_path=None):
     plt.style.use('seaborn-v0_8')
     epochs = np.arange(1, len(train_losses) + 1)
     
-    train_line, = plt.plot(epochs, train_losses, 
-                          color='#1f77b4',
-                          linewidth=2.5, 
-                          marker='o',
-                          markersize=8,
-                          label='Train Loss')
+    plt.plot(epochs, train_losses, 
+        color='#1f77b4',
+        linewidth=2.5, 
+        marker='o',
+        markersize=8,
+        label='Train Loss')
     
-    val_line, = plt.plot(epochs, val_losses, 
-                        color='#ff7f0e',
-                        linewidth=2.5, 
-                        marker='s',
-                        markersize=8,
-                        label='Validation Loss')
+    plt.plot(epochs, val_losses, 
+        color='#ff7f0e',
+        linewidth=2.5, 
+        marker='s',
+        markersize=8,
+        label='Validation Loss')
     
     # Ajustes estéticos
     plt.title('Training and Validation Loss', fontsize=14, pad=20)
