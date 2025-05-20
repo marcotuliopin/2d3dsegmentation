@@ -32,15 +32,17 @@ class SunRGBDDataset(Dataset):
 
 class NYUDepthV2Dataset(Dataset):
     def __init__(self, path_file, transform=None, split_name="train"):
-        self.data = load_dataset("parquet", datafiles={split_name: path_file})
+        self.data = load_dataset("parquet", data_files={split_name: path_file})
+        self.split_name = split_name
         self.transform = transform
 
     def __len__(self):
-        return len(self.data)
+        return len(self.data[self.split_name])
 
     def __getitem__(self, idx):
-        image = self.data[idx]["image"]
-        mask = self.data[idx]["label"]
+        sample = self.data[self.split_name][idx]
+        image = sample["image"]
+        mask = sample["label"]
 
         if self.transform:
             transformed = self.transform(image=np.array(image), mask=np.array(mask))
