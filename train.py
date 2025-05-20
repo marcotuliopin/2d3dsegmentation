@@ -34,9 +34,6 @@ def parse_args():
         help="Modelo a ser treinado",
     )
     parser.add_argument(
-        "-p", "--pretrained", action="store_true", help="Usar pesos pré-treinados"
-    )
-    parser.add_argument(
         "-b",
         "--batch-size",
         type=int,
@@ -50,12 +47,9 @@ def parse_args():
         default=TRAINING_CONFIG["num_epochs"],
         help="Número de épocas",
     )
-    parser.add_argument(
-        "--lr", type=float, default=TRAINING_CONFIG["lr"], help="Taxa de aprendizado"
-    )
-    parser.add_argument(
-        "-n", "--exp-name", type=str, default="experiment", help="Nome do experimento"
-    )
+    parser.add_argument("-p", "--pretrained", action="store_true", help="Usar pesos pré-treinados")
+    parser.add_argument("--lr", type=float, default=TRAINING_CONFIG["lr"], help="Taxa de aprendizado")
+    parser.add_argument("-n", "--exp-name", type=str, default="experiment", help="Nome do experimento")
     return parser.parse_args()
 
 
@@ -69,12 +63,8 @@ def main():
     os.makedirs(exp_dir, exist_ok=True)
     os.makedirs(os.path.join(OUTPUT_CONFIG["plots_dir"], args.exp_name), exist_ok=True)
 
-    train_transform = get_training_transforms(
-        height=DATA_CONFIG["image_height"], width=DATA_CONFIG["image_width"]
-    )
-    val_transform = get_validation_transforms(
-        height=DATA_CONFIG["image_height"], width=DATA_CONFIG["image_width"]
-    )
+    train_transform = get_training_transforms(height=DATA_CONFIG["image_height"], width=DATA_CONFIG["image_width"])
+    val_transform = get_validation_transforms(height=DATA_CONFIG["image_height"], width=DATA_CONFIG["image_width"])
 
     train_dataset = SunRGBDDataset(
         path_file=DATA_CONFIG["train_file"],
@@ -106,20 +96,14 @@ def main():
 
     model_config = MODEL_CONFIGS[args.model].copy()
     model_config["pretrained"] = args.pretrained
-    model = get_model(
-        args.model, num_classes=DATA_CONFIG["num_classes"], **model_config
-    )
+    model = get_model(args.model, num_classes=DATA_CONFIG["num_classes"], **model_config)
     model = model.to(device)
 
     # Training configurations
     criterion = nn.CrossEntropyLoss(ignore_index=0)
     # criterion = FocalLoss(alpha=0.75, gamma=2.0)
-    optimizer = torch.optim.AdamW(
-        model.parameters(), lr=args.lr, weight_decay=TRAINING_CONFIG["weight_decay"]
-    )
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer=optimizer, mode="min", factor=0.1, patience=5
-    )
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=TRAINING_CONFIG["weight_decay"])
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, mode="min", factor=0.1, patience=5)
 
     checkpoint_saver = CheckpointSaver(model, optimizer, save_dir=exp_dir)
 
@@ -156,9 +140,7 @@ def main():
         if early_stopping(val_loss, epoch):
             break
 
-    plot_path = os.path.join(
-        OUTPUT_CONFIG["plots_dir"], args.exp_name, "loss_curves.png"
-    )
+    plot_path = os.path.join(OUTPUT_CONFIG["plots_dir"], args.exp_name, "loss_curves.png")
     plot_loss_curves(train_losses, val_losses, save_path=plot_path)
 
     # Save experiment config
