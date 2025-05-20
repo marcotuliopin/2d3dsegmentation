@@ -37,7 +37,7 @@ cd "$PROJECT_ROOT"
 # python evaluate.py -n fcn_resnet50_pretrained_square_img
 
 echo "Running experiment: DeepLabV3-Resnet101 Pretrained in NYUDepth V2..."
-python train_kfold.py -m deeplabv3_resnet101 \
+python train.py -m deeplabv3_resnet101 \
     -p \
     -b 4 \
     -e 70 \
