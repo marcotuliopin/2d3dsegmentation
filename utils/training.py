@@ -13,7 +13,7 @@ class CheckpointSaver:
         os.makedirs(save_dir, exist_ok=True)
 
     def save(self, epoch, verbose=False):
-        checkpoint_path = os.path.join(self.save_dir, f"checkpoint_epoch_{epoch}.pth")
+        checkpoint_path = os.path.join(self.save_dir, f"checkpoint.pth")
         torch.save({
             'epoch': epoch,
             'model_state_dict': self.model.state_dict(),
