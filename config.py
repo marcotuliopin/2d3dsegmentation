@@ -11,6 +11,7 @@ DATA_CONFIG = {
         "train_file": os.path.join(ROOT_DIR["sun_rgbd"], "train37.txt"),
         "val_file": os.path.join(ROOT_DIR["sun_rgbd"], "split/val37.txt"),
         "test_file": os.path.join(ROOT_DIR["sun_rgbd"], "split/test37.txt"),
+        "unlabeled": 0,
         "num_classes": 38,
         "image_height": 256,
         "image_width": 256,
@@ -19,7 +20,8 @@ DATA_CONFIG = {
         "root_dir": ROOT_DIR["nyu_depth_v2"],
         "train_file": os.path.join(ROOT_DIR["nyu_depth_v2"], "train.parquet"),
         "test_file": os.path.join(ROOT_DIR["nyu_depth_v2"], "test.parquet"),
-        "num_classes": 38,
+        "unlabeled": 0,
+        "num_classes": 41,
         "image_height": 256,
         "image_width": 256,
     }
@@ -43,7 +45,7 @@ MODEL_CONFIGS = {
     },
     "fcn_resnet101": {
         "pretrained": False,
-        "dropout": 0.22,
+        "dropout": 0.2,
     },
     "deeplabv3_resnet50": {
         "pretrained": False,
