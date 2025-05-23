@@ -20,7 +20,7 @@ DATA_CONFIG = {
         "root_dir": ROOT_DIR["nyu_depth_v2"],
         "train_file": os.path.join(ROOT_DIR["nyu_depth_v2"], "train.parquet"),
         "test_file": os.path.join(ROOT_DIR["nyu_depth_v2"], "test.parquet"),
-        "unlabeled": 0,
+        "unlabeled": 40,
         "num_classes": 41,
         "image_height": 256,
         "image_width": 256,
