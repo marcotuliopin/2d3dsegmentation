@@ -1,4 +1,4 @@
-name: poc
+name: 2d3dseg
 channels:
   - conda-forge
   - defaults
