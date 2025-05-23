@@ -145,6 +145,7 @@ def compute_segmentation_metrics(preds, labels, num_classes, ignore_index=0):
 def main():
     args = parse_args()
 
+    # Configure CUDA
     print("CUDA Available:", torch.cuda.is_available())
     if torch.cuda.is_available():
         print(f"GPU Total Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
@@ -155,10 +156,12 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
+    # Make sure the experiment exists
     exp_dir = os.path.join(OUTPUT_CONFIG["checkpoints_dir"], args.exp_name)
     with open(os.path.join(exp_dir, "config.pkl"), "rb") as f:
         config = pickle.load(f)
 
+    # We need to load the model with the same configuration used for training
     model = get_model(config["model"], num_classes=config["num_classes"], **{
             k: v
             for k, v in config.get("model_config", {}).items()
@@ -167,8 +170,7 @@ def main():
     )
     model = model.to(device)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.001)
-    checkpoint_saver = CheckpointSaver(model, optimizer, exp_dir)
+    checkpoint_saver = CheckpointSaver(model, exp_dir)
 
     if args.checkpoint == "latest":
         checkpoint_path = get_latest_checkpoint(exp_dir)
@@ -176,8 +178,10 @@ def main():
         checkpoint_path = os.path.join(exp_dir, args.checkpoint)
     checkpoint_saver.load(checkpoint_path)
 
+    # ------ Data  Loading ------
     data_config = DATA_CONFIG[args.database]
     test_transform = get_validation_transforms(height=data_config["image_height"], width=data_config["image_width"])
+
     test_dataset = NYUDepthV2Dataset(data_config["test_file"], 
         transform=test_transform, 
         split_name="test"
@@ -192,6 +196,8 @@ def main():
 
     results = test_model(model, test_loader, device, num_classes=config["num_classes"])
     results_dir = os.path.join(OUTPUT_CONFIG["results_dir"], args.exp_name)
+
+    # Make sure the output directories exist
     os.makedirs(results_dir, exist_ok=True)
     with open(os.path.join(results_dir, "test_results.pkl"), "wb") as f:
         pickle.dump(results, f)
