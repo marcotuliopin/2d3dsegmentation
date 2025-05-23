@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 
 class CheckpointSaver:
-    def __init__(self, model, optimizer, save_dir):
+    def __init__(self, model, save_dir, optimizer=None):
         self.model = model
         self.optimizer = optimizer
         self.save_dir = save_dir
@@ -25,7 +25,8 @@ class CheckpointSaver:
     def load(self, checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
         self.model.load_state_dict(checkpoint['model_state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if self.optimizer:
+            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         start_epoch = checkpoint.get('epoch', 0)
         print(f"Checkpoint loaded from {checkpoint_path}, starting from epoch {start_epoch}")
         return start_epoch

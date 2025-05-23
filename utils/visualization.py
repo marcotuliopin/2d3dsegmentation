@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
+from matplotlib.colors import LinearSegmentedColormap
 
 
 def plot_loss_curves(train_losses, val_losses, save_path=None):
@@ -91,31 +92,101 @@ def visualize_predictions(model, data_loader, device, num_samples=5, save_path=N
     std = np.array([0.229, 0.224, 0.225])
     images = std * images + mean
     images = np.clip(images, 0, 1)
+
+    # Carregar mapeamento id2label se fornecido
+    id2label_path = "data/NYUDepthv2_seg/id2label.json"
+    id2label = None
+    if id2label_path:
+        try:
+            import json
+            with open(id2label_path, 'r') as f:
+                id2label = json.load(f)
+        except Exception as e:
+            print(f"Error while loading id2label: {e}")
     
-    plt.figure(figsize=(15, 4*num_samples))
+    # Coletar todas as classes presentes nas imagens para a legenda
+    all_classes = set()
     for i in range(num_samples):
-        plt.subplot(num_samples, 3, i*3+1)
-        plt.imshow(images[i])
-        plt.title("Imagem Original")
-        plt.axis('off')
-        
-        plt.subplot(num_samples, 3, i*3+2)
-        plt.imshow(masks[i], cmap='tab20')
-        plt.title("Máscara Real")
-        plt.axis('off')
-        
-        plt.subplot(num_samples, 3, i*3+3)
-        plt.imshow(preds[i], cmap='tab20')
-        plt.title("Predição")
-        plt.axis('off')
+        all_classes.update(np.unique(masks[i]))
+        all_classes.update(np.unique(preds[i]))
+    all_classes = sorted(all_classes)
     
-    plt.tight_layout()
+    colors = get_color_map()
+    def get_color(class_id):
+        return colors[class_id % len(colors)]
+    
+    # Create image grid
+    fig = plt.figure(figsize=(18, 4*num_samples))
+    gs = fig.add_gridspec(num_samples, 4, width_ratios=[1, 1, 1, 0.5])
+    
+    # Create patches for legend
+    legend_patches = []
+    for class_id in all_classes:
+        color = get_color(class_id)
+        class_name = id2label[str(class_id)] if id2label and str(class_id) in id2label else f"Class {class_id}"
+        legend_patches.append(
+            plt.Rectangle((0, 0), 1, 1, fc=color, 
+                         label=f"{class_id}: {class_name}")
+        )
+    
+    # Adicionar visualizações
+    for i in range(num_samples):
+        # Imagem original
+        ax1 = fig.add_subplot(gs[i, 0])
+        ax1.imshow(images[i])
+        ax1.set_title("Original Image")
+        ax1.axis('off')
+        
+        # Ground Truth - Usar colormap personalizado
+        ax2 = fig.add_subplot(gs[i, 1])
+        gt_img = ax2.imshow(masks[i], cmap=create_custom_cmap(colors), vmin=0, vmax=40)
+        ax2.set_title("Ground Truth")
+        ax2.axis('off')
+        
+        # Predição - Usar colormap personalizado
+        ax3 = fig.add_subplot(gs[i, 2])
+        pred_img = ax3.imshow(preds[i], cmap=create_custom_cmap(colors), vmin=0, vmax=40)
+        ax3.set_title("Predicted Mask")
+        ax3.axis('off')
+        
+        # Adicionar legenda apenas na primeira linha
+        if i == 0:
+            # Legenda à direita
+            ax4 = fig.add_subplot(gs[:, 3])
+            ax4.axis('off')
+            ax4.legend(
+                handles=legend_patches, 
+                loc='center', 
+                title="Classes",
+                fontsize=8
+            )
+    
+    plt.tight_layout(rect=[0, 0, 0.9, 1])  # Leave space for legend
     
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"Visualizações salvas em: {save_path}")
+        print(f"Visualization saved at path: {save_path}")
     else:
         plt.show()
+    
+    
+def get_color_map():
+    colors = []
+
+    tab20 = plt.cm.get_cmap('tab20', 20)
+    colors.extend([tab20(i) for i in range(20)])
+    
+    tab20b = plt.cm.get_cmap('tab20b', 20)
+    colors.extend([tab20b(i) for i in range(20)])
+    
+    tab20c = plt.cm.get_cmap('tab20c', 20)
+    colors.extend([tab20c(i) for i in range(20)])
+
+    return colors
+
+
+def create_custom_cmap(colors):
+    return LinearSegmentedColormap.from_list('custom_cmap', colors, N=len(colors))
     
     
 def visualize_image(image_path, title='Image', save_path=None):
@@ -127,7 +198,7 @@ def visualize_image(image_path, title='Image', save_path=None):
     
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"Imagem salva em: {save_path}")
+        print(f"Image saved at path: {save_path}")
     else:
         plt.show()
 

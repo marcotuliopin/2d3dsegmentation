@@ -1,9 +1,10 @@
 import os
-from sklearn.model_selection import train_test_split
-import torch
 import pickle
 import argparse
+import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader, Subset
+from sklearn.model_selection import train_test_split
 
 from config import DATA_CONFIG, TRAINING_CONFIG, MODEL_CONFIGS, OUTPUT_CONFIG
 from models.segmentation import get_model
@@ -12,7 +13,6 @@ from utils.transforms import get_training_transforms, get_validation_transforms
 from utils.training import (
     CheckpointSaver,
     EarlyStopping,
-    FocalLoss,
     SegmentationTrainer,
 )
 from utils.visualization import plot_loss_curves
@@ -64,6 +64,7 @@ def parse_args():
 def main():
     args = parse_args()
 
+    # Configure CUDA
     print("CUDA Available:", torch.cuda.is_available())
     if torch.cuda.is_available():
         print(f"GPU Total Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
@@ -74,6 +75,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
+    # Make sure the output directories exist
     exp_dir = os.path.join(OUTPUT_CONFIG["checkpoints_dir"], args.exp_name)
     os.makedirs(exp_dir, exist_ok=True)
     os.makedirs(os.path.join(OUTPUT_CONFIG["plots_dir"], args.exp_name), exist_ok=True)
@@ -87,7 +89,6 @@ def main():
         path_file=data_config["train_file"],
         transform=None
     )
-    print(f"Full dataset size: {len(full_dataset)}")
     indices = list(range(len(full_dataset)))
     train_indices, val_indices = train_test_split(
         indices, test_size=0.2, random_state=42, shuffle=True
@@ -124,11 +125,11 @@ def main():
     model = model.to(device) 
 
     # ------ Training Configurations ------
-    # criterion = nn.CrossEntropyLoss(ignore_index=data_config["unlabeled"])
-    criterion = FocalLoss(alpha=0.75, gamma=2.0, ignore_index=data_config["unlabeled"])
+    criterion = nn.CrossEntropyLoss(ignore_index=data_config["unlabeled"])
+    # criterion = FocalLoss(alpha=0.75, gamma=2.0, ignore_index=data_config["unlabeled"])
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=TRAINING_CONFIG["weight_decay"])
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, mode="min", factor=0.1, patience=5)
-    checkpoint_saver = CheckpointSaver(model, optimizer, save_dir=exp_dir)
+    checkpoint_saver = CheckpointSaver(model, exp_dir, optimizer)
     early_stopping = EarlyStopping(
         patience=TRAINING_CONFIG["patience"],
         min_delta=TRAINING_CONFIG["min_delta"],
