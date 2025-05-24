@@ -18,14 +18,19 @@ from utils.training import (
 from utils.visualization import plot_loss_curves
 
 
-def main(args):
+def main(args, config):
     # Configure CUDA
     device = configure_device()
 
     # Make sure the output directories exist
-    exp_dir = os.path.join(config["output"]["directories"]["checkpoints"], args.experiment_name)
+    exp_dir = os.path.join(
+        config["output"]["directories"]["checkpoints"], args.experiment_name
+    )
     os.makedirs(exp_dir, exist_ok=True)
-    os.makedirs(os.path.join(config["output"]["directories"]["plots"], args.experiment_name), exist_ok=True)
+    os.makedirs(
+        os.path.join(config["output"]["directories"]["plots"], args.experiment_name),
+        exist_ok=True,
+    )
 
     # ------ Data  Loading ------
     data_config = config["data"][args.data].copy()
@@ -33,7 +38,7 @@ def main(args):
         height=data_config["image_size"][0], width=data_config["image_size"][1]
     )
     val_transform = get_validation_transforms(
-        height=data_config["image_height"][0], width=data_config["image_width"][1]
+        height=data_config["image_size"][0], width=data_config["image_size"][1]
     )
 
     full_dataset = NYUDepthV2Dataset(
@@ -45,11 +50,13 @@ def main(args):
     )
 
     train_dataset = Subset(
-        NYUDepthV2Dataset(data_config["train_file"], transform=train_transform),
+        NYUDepthV2Dataset(
+            data_config["paths"]["train_file"], transform=train_transform
+        ),
         train_indices,
     )
     val_dataset = Subset(
-        NYUDepthV2Dataset(data_config["train_file"], transform=val_transform),
+        NYUDepthV2Dataset(data_config["paths"]["train_file"], transform=val_transform),
         val_indices,
     )
 
@@ -58,7 +65,7 @@ def main(args):
         batch_size=args.batch_size,
         drop_last=True,
         shuffle=True,
-        num_workers=config["train"]["num_workers"]["num_workers"],
+        num_workers=config["train"]["num_workers"],
     )
     val_loader = DataLoader(
         val_dataset,
@@ -77,9 +84,23 @@ def main(args):
     model = model.to(device)
 
     # ------ Training Configurations ------
-    criterion = get_loss_function(args.loss, config["train"]["loss"], data_config["unlabeled_id"])
-    optimizer = get_optimizer(args.optimizer, model.parameters(), config["train"]["optimizer"], args.lr)
-    scheduler = get_scheduler(args.scheduler, optimizer, config["train"]["lr_scheduler"])
+    criterion = get_loss_function(
+        args.loss, config["train"]["loss"][args.loss], data_config["unlabeled_id"]
+    )
+    optimizer = get_optimizer(
+        args.optimizer,
+        model.parameters(),
+        config["train"]["optimizer"][args.optimizer],
+        args.lr,
+    )
+    scheduler = get_scheduler(
+        args.scheduler,
+        optimizer,
+        config["train"]["lr_scheduler"][args.scheduler],
+        args.batch_size,
+        args.epochs,
+        len(train_loader),
+    )
     checkpoint_saver = CheckpointSaver(model, exp_dir, optimizer)
     early_stopping = EarlyStopping(
         patience=config["train"]["early_stopping"]["patience"],
@@ -87,20 +108,43 @@ def main(args):
         checkpoint_saver=checkpoint_saver,
     )
 
+    start_epoch = 0
+    if args.resume:
+        checkpoint_path = os.path.join(exp_dir, "checkpoint.pth")
+        if os.path.exists(checkpoint_path):
+            start_epoch = checkpoint_saver.load(checkpoint_path)
+            print(f"Resuming training from epoch {start_epoch}")
+            
+            # Carregar histórico de perdas se existir
+            loss_path = os.path.join(exp_dir, f"{args.experiment_name}_losses.pkl")
+            if os.path.exists(loss_path):
+                with open(loss_path, "rb") as f:
+                    losses_dict = pickle.load(f)
+                    train_losses = losses_dict.get("train", [])
+                    val_losses = losses_dict.get("val", [])
+                    print(f"Loaded training history with {len(train_losses)} epochs")
+            else:
+                train_losses = []
+                val_losses = []
+        else:
+            print(f"No checkpoint found at {checkpoint_path}, starting training from scratch.")
+            train_losses = []
+            val_losses = []
+    else:
+        train_losses = []
+        val_losses = []
+
     trainer = Trainer(model, optimizer, criterion, device)
 
-    train_losses = []
-    val_losses = []
-
     # ------ Training ------
-    for epoch in range(args.epochs):
+    for epoch in range(start_epoch, args.epochs):
         train_loss = trainer.train_epoch(train_loader, epoch)
         val_loss = trainer.validate(val_loader, epoch)
 
         train_losses.append(train_loss)
         val_losses.append(val_loss)
 
-        scheduler.step(val_loss)
+        scheduler.step()
 
         loss_path = os.path.join(exp_dir, f"{args.experiment_name}_losses.pkl")
         with open(loss_path, "wb") as f:
@@ -115,14 +159,15 @@ def main(args):
 
     # ------ Saving Info ------
     plot_path = os.path.join(
-        config["output"]["directories"]["plots"], args.experiment_name, "loss_curves.png"
+        config["output"]["directories"]["plots"],
+        args.experiment_name,
+        "loss_curves.png",
     )
     plot_loss_curves(train_losses, val_losses, save_path=plot_path)
 
     # Save experiment config
     config = {
         "model": args.model,
-        "pretrained": args.pretrained,
         "batch_size": args.batch_size,
         "epochs": args.epochs,
         "lr": args.lr,
@@ -158,14 +203,16 @@ def get_loss_function(loss_name, loss_config, ignore_index):
             ignore_index=ignore_index,
         )
     elif loss_name == "focal_loss":
-        from utils.training import FocalLoss
+        from utils.losses import FocalLoss
+
         return FocalLoss(
             alpha=loss_config["alpha"],
             gamma=loss_config["gamma"],
             ignore_index=ignore_index,
         )
     elif loss_name == "dice_loss":
-        from utils.training import DiceLoss
+        from utils.losses import DiceLoss
+
         return DiceLoss(
             smooth=loss_config["smooth"],
             ignore_index=ignore_index,
@@ -176,7 +223,7 @@ def get_loss_function(loss_name, loss_config, ignore_index):
 
 def get_optimizer(optimizer_name, model_params, optimizer_config, lr):
     if optimizer_name == "adam":
-        return torch.optim.Adam(
+        return torch.optim.AdamW(
             model_params,
             betas=optimizer_config["betas"],
             eps=optimizer_config["eps"],
@@ -194,19 +241,27 @@ def get_optimizer(optimizer_name, model_params, optimizer_config, lr):
         raise ValueError(f"Unknown optimizer: {optimizer_name}")
 
 
-def get_scheduler(scheduler_name, optimizer, scheduler_config):
+def get_scheduler(
+    scheduler_name, optimizer, scheduler_config, batch_size, num_epochs, len_dataloader
+):
     if scheduler_name == "step":
         return torch.optim.lr_scheduler.StepLR(
             optimizer,
-            step_size=scheduler_config[scheduler_name]["step_size"],
-            gamma=scheduler_config[scheduler_name]["gamma"],
+            step_size=scheduler_config["step_size"],
+            gamma=scheduler_config["gamma"],
         )
     elif scheduler_name == "plateau":
         return torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             mode="min",
-            factor=scheduler_config[scheduler_name]["factor"],
-            patience=scheduler_config[scheduler_name]["patience"],
+            factor=scheduler_config["factor"],
+            patience=scheduler_config["patience"],
+        )
+    elif scheduler_name == "polynomial":
+        return torch.optim.lr_scheduler.PolynomialLR(
+            optimizer,
+            total_iters=(num_epochs * len_dataloader) // batch_size,
+            power=scheduler_config["power"],
         )
     else:
         raise ValueError(f"Unknown scheduler: {scheduler_name}")
@@ -255,7 +310,7 @@ def parse_args(config):
     parser.add_argument(
         "--scheduler",
         type=str,
-        choices=[key for key in config["train"]["scheduler"]],
+        choices=[key for key in config["train"]["lr_scheduler"]],
         help="Scheduler to be used",
     )
     parser.add_argument(
@@ -271,12 +326,22 @@ def parse_args(config):
         help="Loss function to be used",
     )
     parser.add_argument(
-        "-n", "--experiment_name", type=str, default="experiment", help="Experiment name"
+        "-n",
+        "--experiment_name",
+        type=str,
+        default="experiment",
+        help="Experiment name",
     )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume training from the latest checkpoint"
+    )
+    return parser.parse_args()
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     config = read_config()
     args = parse_args(config)
-    main(args)
+    main(args, config)

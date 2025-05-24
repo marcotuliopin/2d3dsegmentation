@@ -19,19 +19,19 @@ data:
 train:
   batch_size: 8
   num_workers: 4
-  epochs: 50
+  epochs: 300
   seed: 42
   
   optimizer:
     adam:
-      learning_rate: 1e-4
+      learning_rate: 0.005
       betas: [0.9, 0.999]
-      weight_decay: 1e-3
-      eps: 1e-8
+      weight_decay: 0.001
+      eps: 0.00000001
     sgd:
-      learning_rate: 7e-3
+      learning_rate: 0.007
       momentum: 0.9
-      weight_decay: 1e-3
+      weight_decay: 0.001
       nesterov: False
   
   lr_scheduler:
@@ -39,10 +39,12 @@ train:
       patience: 5
       factor: 0.1
       mode: min
-      threshold: 1e-4
+      threshold: 0.0001
     step:
       step_size: 10
       gamma: 0.1
+    polynomial:
+      power: 0.9
   
   early_stopping:
     patience: 10
@@ -53,7 +55,7 @@ train:
     cross_entropy:
       weight: None
     dice_loss:
-      smooth: 1e-5
+      smooth: 0.00001
     focal_loss:
       alpha: 0.25
       gamma: 2.0

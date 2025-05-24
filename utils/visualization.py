@@ -81,7 +81,7 @@ def visualize_predictions(model, data_loader, device, num_samples=5, save_path=N
     masks = masks[:num_samples].cpu().numpy()
     
     with torch.no_grad():
-        outputs = model(images)['out']
+        outputs = model(images)
         preds = torch.argmax(outputs, dim=1).cpu().numpy()
     
     # Denormalizar imagens

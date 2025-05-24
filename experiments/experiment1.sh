@@ -3,48 +3,37 @@
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-# echo "Running experiment: DeepLabV3-Resnet101 pretrained..."
-# python train.py -m deeplabv3_resnet101 \
-#     -p \
-#     -b 4 \
-#     -e 100 \
-#     --lr 1e-4 \
-#     -n deeplabv3_resnet101_pretrained_37labels \
-
-# echo "Evaluating experiment..."
-# python evaluate.py -n deeplabv3_resnet101_pretrained_37labels
-
-# echo "Running experiment: FCN-Resnet101 pretrained..."
-# python train.py -m fcn_resnet101 \
-#     -p \
-#     -b 4 \
-#     -e 100 \
-#     --lr 1e-4 \
-#     -n fcn_resnet101_pretrained_square_img \
-
-# echo "Evaluating experiment..."
-# python evaluate.py -n fcn_resnet101_pretrained_square_img
-
-# echo "Running experiment: FCN-Resnet50 pretrained..."
-# python train.py -m fcn_resnet50 \
-#     -p \
-#     -b 4 \
-#     -e 100 \
-#     --lr 1e-4 \
-#     -n fcn_resnet50_pretrained_square_img \
-
-# echo "Evaluating experiment..."
-# python evaluate.py -n fcn_resnet50_pretrained_square_img
-
-echo "Running experiment: DeepLabV3-Resnet101 Pretrained in NYUDepth V2..."
-python train.py -m deeplabv3_resnet101 \
-    -p \
-    -b 4 \
-    -e 70 \
-    --lr 5e-5 \
-    -n deeplabv3_resnet101_pretrained_nyu_depth_v2_focal_loss \
+echo "Running experiment: UNet-Resnet50 With Dice Loss and Polynomial Scheduler..."
+python train.py --model unet_resnet50_polynomial \
+    --optimizer adam \
+    --lr 5e-3 \
+    --scheduler polynomial \
+    --loss dice_loss \
+    -n unet_resnet101 \
 
 echo "Evaluating experiment..."
-python evaluate.py -n deeplabv3_resnet101_pretrained_nyu_depth_v2_focal_loss
+python evaluate.py -n unet_resnet50_polynomial
+
+echo "Running experiment: UNet-Resnet50 With Dice Loss and Plateau scheduler..."
+python train.py --model unet_resnet50_plateau \
+    --optimizer adam \
+    --lr 1e-4 \
+    --scheduler plateau \
+    --loss dice_loss \
+    -n unet_resnet101 \
+
+echo "Evaluating experiment..."
+python evaluate.py -n unet_resnet50_plateau
+
+echo "Running experiment: UNet-Resnet50 With CE and Plateau scheduler..."
+python train.py --model unet_resnet50_plateau_ce \
+    --optimizer adam \
+    --lr 1e-4 \
+    --scheduler plateau \
+    --loss cross_entropy \
+    -n unet_resnet101 \
+
+echo "Evaluating experiment..."
+python evaluate.py -n unet_resnet50_plateau_ce
 
 echo "Experiments completed."

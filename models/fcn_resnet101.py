@@ -3,6 +3,7 @@ import torchvision
 
 
 def get_fcn_resnet101(num_classes, pretrained=False, dropout=0.5):
+    print("Using model: FCN ResNet101")
     if pretrained:
         from torchvision.models.segmentation import FCN_ResNet101_Weights
         model = torchvision.models.segmentation.fcn_resnet101(weights=FCN_ResNet101_Weights.DEFAULT)

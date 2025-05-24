@@ -15,12 +15,12 @@ from utils.training import CheckpointSaver
 from utils.visualization import plot_confusion_matrix, visualize_predictions
 
 
-def main(args):
+def main(args, config):
     # Configure CUDA
     device = configure_device()
 
     # Make sure the experiment exists
-    exp_dir = os.path.join(config["output"]["directories"]["checkpoints"], args.exp_name)
+    exp_dir = os.path.join(config["output"]["directories"]["checkpoints"], args.experiment_name)
     with open(os.path.join(exp_dir, "config.pkl"), "rb") as f:
         exp_config = pickle.load(f)
 
@@ -38,7 +38,7 @@ def main(args):
     checkpoint_saver.load(checkpoint_path)
 
     # ------ Data  Loading ------
-    data_config = exp_config["data"][args.data]
+    data_config = config["data"][args.data]
     test_transform = get_validation_transforms(height=data_config["image_size"][0], width=data_config["image_size"][1])
 
     test_dataset = NYUDepthV2Dataset(data_config["paths"]["test_file"], 
@@ -54,15 +54,15 @@ def main(args):
     )
 
     # ------ Testing ------
-    results = test_model(model, test_loader, device, num_classes=exp_config["num_classes"])
-    results_dir = os.path.join(config["output"]["directories"]["results"], args.exp_name)
+    results = test_model(model, test_loader, device, exp_config["num_classes"], data_config["unlabeled_id"])
+    results_dir = os.path.join(config["output"]["directories"]["results"], args.experiment_name)
 
     # Make sure the output directories exist
     os.makedirs(results_dir, exist_ok=True)
     with open(os.path.join(results_dir, "test_results.pkl"), "wb") as f:
         pickle.dump(results, f)
 
-    plots_dir = os.path.join(config["output"]["directories"]["plots"], args.exp_name)
+    plots_dir = os.path.join(config["output"]["directories"]["plots"], args.experiment_name)
     os.makedirs(plots_dir, exist_ok=True)
 
     cm_path = os.path.join(plots_dir, "confusion_matrix.png")
@@ -78,11 +78,11 @@ def main(args):
         f.write(f"Pixel Accuracy: {results['pixel_acc']:.4f}\n")
         f.write(f"F1 Score: {results['mean_f1']:.4f}\n")
         f.write("\nIoU por classe:\n")
-        for i in range(config["num_classes"]):
+        for i in range(exp_config["num_classes"]):
             f.write(f"  Classe {i}: {results['class_iou'][i]:.4f}\n")
 
 
-def test_model(model, data_loader, device, num_classes):
+def test_model(model, data_loader, device, num_classes, unlabeled_id):
     all_preds = []
     all_labels = []
 
@@ -92,7 +92,7 @@ def test_model(model, data_loader, device, num_classes):
             images = images.to(device)
             masks = masks.to(device)
 
-            outputs = model(images)["out"]
+            outputs = model(images)
             preds = torch.argmax(outputs, dim=1)
 
             all_preds.append(preds)
@@ -105,7 +105,7 @@ def test_model(model, data_loader, device, num_classes):
         preds=all_preds,
         labels=all_labels,
         num_classes=num_classes,
-        ignore_index=40
+        ignore_index=unlabeled_id
     )
 
 
@@ -223,4 +223,4 @@ def parse_args(config):
 if __name__ == "__main__":
     config = read_config()
     args = parse_args(config)
-    main(args)
+    main(args, config)
