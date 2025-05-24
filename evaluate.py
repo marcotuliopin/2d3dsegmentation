@@ -93,6 +93,9 @@ def test_model(model, data_loader, device, num_classes, unlabeled_id):
             masks = masks.to(device)
 
             outputs = model(images)
+            if isinstance(outputs, dict):
+                outputs = outputs["out"]
+
             preds = torch.argmax(outputs, dim=1)
 
             all_preds.append(preds)

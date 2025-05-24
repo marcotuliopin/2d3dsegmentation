@@ -2,7 +2,7 @@ import torch.nn as nn
 import torchvision
 
 
-def get_deeplabv3_resnet101(num_classes, pretrained=False, dropout=0.5):
+def get_deeplabv3_resnet101(num_classes, pretrained=False, dropout=0.5, freeze_backbone=True, backbone="resnet101", output_stride=16, aux_loss=False):
     print("Using model: DeepLabV3 ResNet101")
     if pretrained:
         from torchvision.models.segmentation import DeepLabV3_ResNet101_Weights

@@ -68,6 +68,9 @@ class Trainer:
 
             self.optimizer.zero_grad()
             outputs = self.model(images)
+            if isinstance(outputs, dict):
+                outputs = outputs["out"]
+
             loss = self.criterion(outputs, masks)
             loss.backward()
             self.optimizer.step()
@@ -86,6 +89,9 @@ class Trainer:
                 masks = masks.to(self.device)
 
                 outputs = self.model(images)
+                if isinstance(outputs, dict):
+                    outputs = outputs["out"]
+
                 loss = self.criterion(outputs, masks)
 
                 running_loss += loss.item()
