@@ -2,7 +2,7 @@ import torch.nn as nn
 import torchvision
 
 
-def get_fcn_resnet101(num_classes=14, pretrained=False, dropout=0.5):
+def get_fcn_resnet101(num_classes, pretrained=False, dropout=0.5):
     if pretrained:
         from torchvision.models.segmentation import FCN_ResNet101_Weights
         model = torchvision.models.segmentation.fcn_resnet101(weights=FCN_ResNet101_Weights.DEFAULT)

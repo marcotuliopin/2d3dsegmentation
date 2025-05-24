@@ -2,7 +2,7 @@ import torch.nn as nn
 import torchvision
 
 
-def get_deeplabv3_resnet50(num_classes=14, pretrained=False, dropout=0.5):
+def get_deeplabv3_resnet50(num_classes, pretrained=False, dropout=0.5):
     if pretrained:
         from torchvision.models.segmentation import DeepLabV3_ResNet50_Weights
         model = torchvision.models.segmentation.deeplabv3_resnet50(weights=DeepLabV3_ResNet50_Weights.DEFAULT)

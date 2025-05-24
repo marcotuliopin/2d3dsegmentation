@@ -30,6 +30,7 @@ def parse_args():
             "deeplabv3_resnet50",
             "fcn_resnet101",
             "deeplabv3_resnet101",
+            "unet_resnet50"
         ],
         help="Modelo a ser treinado",
     )
