@@ -199,7 +199,6 @@ def configure_device():
 def get_loss_function(loss_name, loss_config, ignore_index):
     if loss_name == "cross_entropy":
         return nn.CrossEntropyLoss(
-            weight=loss_config["weight"],
             ignore_index=ignore_index,
         )
     elif loss_name == "focal_loss":
