@@ -108,31 +108,7 @@ def main(args, config):
         checkpoint_saver=checkpoint_saver,
     )
 
-    start_epoch = 0
-    if args.resume:
-        checkpoint_path = os.path.join(exp_dir, "checkpoint.pth")
-        if os.path.exists(checkpoint_path):
-            start_epoch = checkpoint_saver.load(checkpoint_path)
-            print(f"Resuming training from epoch {start_epoch}")
-            
-            # Carregar histórico de perdas se existir
-            loss_path = os.path.join(exp_dir, f"{args.experiment_name}_losses.pkl")
-            if os.path.exists(loss_path):
-                with open(loss_path, "rb") as f:
-                    losses_dict = pickle.load(f)
-                    train_losses = losses_dict.get("train", [])
-                    val_losses = losses_dict.get("val", [])
-                    print(f"Loaded training history with {len(train_losses)} epochs")
-            else:
-                train_losses = []
-                val_losses = []
-        else:
-            print(f"No checkpoint found at {checkpoint_path}, starting training from scratch.")
-            train_losses = []
-            val_losses = []
-    else:
-        train_losses = []
-        val_losses = []
+    start_epoch, train_losses, val_losses = load_checkpoint( args.resume, checkpoint_saver, exp_dir)
 
     trainer = Trainer(model, optimizer, criterion, device)
 
@@ -144,7 +120,10 @@ def main(args, config):
         train_losses.append(train_loss)
         val_losses.append(val_loss)
 
-        scheduler.step()
+        if args.scheduler == "plateau":
+            scheduler.step(val_loss)
+        else:
+            scheduler.step()
 
         loss_path = os.path.join(exp_dir, f"{args.experiment_name}_losses.pkl")
         with open(loss_path, "wb") as f:
@@ -264,6 +243,36 @@ def get_scheduler(
         )
     else:
         raise ValueError(f"Unknown scheduler: {scheduler_name}")
+
+
+def load_checkpoint(resume, checkpoint_saver, exp_dir):
+    start_epoch = 0
+    if resume:
+        checkpoint_path = os.path.join(exp_dir, "checkpoint.pth")
+        if os.path.exists(checkpoint_path):
+            start_epoch = checkpoint_saver.load(checkpoint_path)
+            print(f"Resuming training from epoch {start_epoch}")
+            
+            # Carregar histórico de perdas se existir
+            loss_path = os.path.join(exp_dir, f"{args.experiment_name}_losses.pkl")
+            if os.path.exists(loss_path):
+                with open(loss_path, "rb") as f:
+                    losses_dict = pickle.load(f)
+                    train_losses = losses_dict.get("train", [])
+                    val_losses = losses_dict.get("val", [])
+                    print(f"Loaded training history with {len(train_losses)} epochs")
+            else:
+                train_losses = []
+                val_losses = []
+        else:
+            print(f"No checkpoint found at {checkpoint_path}, starting training from scratch.")
+            train_losses = []
+            val_losses = []
+    else:
+        train_losses = []
+        val_losses = []
+
+    return start_epoch, train_losses, val_losses
 
 
 def read_config():
