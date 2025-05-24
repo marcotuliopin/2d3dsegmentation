@@ -6,8 +6,8 @@ import argparse
 import numpy as np
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+import yaml
 
-from config import DATA_CONFIG, OUTPUT_CONFIG, TRAINING_CONFIG
 from models.segmentation import get_model
 from utils.datasets import NYUDepthV2Dataset
 from utils.transforms import get_validation_transforms
@@ -15,43 +15,71 @@ from utils.training import CheckpointSaver
 from utils.visualization import plot_confusion_matrix, visualize_predictions
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="Avaliação do modelo de segmentação")
-    parser.add_argument(
-        "-n",
-        "--exp-name",
-        type=str,
-        required=True,
-        help="Nome do experimento para avaliar",
-    )
-    parser.add_argument(
-        "-b",
-        "--batch-size",
-        type=int,
-        default=TRAINING_CONFIG["batch_size"],
-        help="Tamanho do batch",
-    )
-    parser.add_argument(
-        "--checkpoint",
-        type=str,
-        default="latest",
-        help='Nome do checkpoint específico (ou "latest")',
-    )
-    parser.add_argument(
-        "--database",
-        type=str,
-        default="nyu_depth_v2",
-        choices=["sun_rgbd", "nyu_depth_v2"],
-        help="Dataset a ser usado",
-    )
-    return parser.parse_args()
+def main(args):
+    # Configure CUDA
+    device = configure_device()
 
+    # Make sure the experiment exists
+    exp_dir = os.path.join(config["output"]["directories"]["checkpoints"], args.exp_name)
+    with open(os.path.join(exp_dir, "config.pkl"), "rb") as f:
+        exp_config = pickle.load(f)
 
-def get_latest_checkpoint(checkpoint_dir):
-    checkpoints = [f for f in os.listdir(checkpoint_dir) if f.endswith(".pth")]
-    if not checkpoints:
-        raise FileNotFoundError(f"No checkpoint found at {checkpoint_dir}")
-    return os.path.join(checkpoint_dir, checkpoints[-1])
+    # We need to load the model with the same configuration used for training
+    model = get_model(exp_config["model"], num_classes=exp_config["num_classes"], **{
+            k: v
+            for k, v in exp_config.get("model_config", {}).items()
+            if k != "num_classes"
+        },
+    )
+    model = model.to(device)
+
+    checkpoint_saver = CheckpointSaver(model, exp_dir)
+    checkpoint_path = get_latest_checkpoint(exp_dir)
+    checkpoint_saver.load(checkpoint_path)
+
+    # ------ Data  Loading ------
+    data_config = exp_config["data"][args.data]
+    test_transform = get_validation_transforms(height=data_config["image_size"][0], width=data_config["image_size"][1])
+
+    test_dataset = NYUDepthV2Dataset(data_config["paths"]["test_file"], 
+        transform=test_transform, 
+        split_name="test"
+    )
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=args.batch_size,
+        drop_last=True,
+        shuffle=False,
+        num_workers=config["train"]["num_workers"]
+    )
+
+    # ------ Testing ------
+    results = test_model(model, test_loader, device, num_classes=exp_config["num_classes"])
+    results_dir = os.path.join(config["output"]["directories"]["results"], args.exp_name)
+
+    # Make sure the output directories exist
+    os.makedirs(results_dir, exist_ok=True)
+    with open(os.path.join(results_dir, "test_results.pkl"), "wb") as f:
+        pickle.dump(results, f)
+
+    plots_dir = os.path.join(config["output"]["directories"]["plots"], args.exp_name)
+    os.makedirs(plots_dir, exist_ok=True)
+
+    cm_path = os.path.join(plots_dir, "confusion_matrix.png")
+    plot_confusion_matrix(results["confusion_matrix"], save_path=cm_path)
+
+    vis_path = os.path.join(plots_dir, "predictions.png")
+    visualize_predictions(model, test_loader, device, num_samples=4, save_path=vis_path)
+
+    with open(os.path.join(results_dir, "test_results.txt"), "w") as f:
+        f.write(f"Mean IoU: {results['mean_iou']:.4f}\n")
+        f.write(f"Weighted IoU: {results['weighted_iou']:.4f}\n")
+        f.write(f"Mean Dice: {results['mean_dice']:.4f}\n")
+        f.write(f"Pixel Accuracy: {results['pixel_acc']:.4f}\n")
+        f.write(f"F1 Score: {results['mean_f1']:.4f}\n")
+        f.write("\nIoU por classe:\n")
+        for i in range(config["num_classes"]):
+            f.write(f"  Classe {i}: {results['class_iou'][i]:.4f}\n")
 
 
 def test_model(model, data_loader, device, num_classes):
@@ -107,10 +135,8 @@ def compute_segmentation_metrics(preds, labels, num_classes, ignore_index=0):
     class_dice = (2 * intersection) / np.maximum((ground_truth_set + predicted_set), 1)
     mean_dice = np.nanmean(class_dice)
 
-    # Pixel accuracy
     pixel_acc = intersection.sum() / np.maximum(conf_matrix.sum(), 1)
 
-    # Precision, recall, F1 per class
     precision = precision_score(labels, preds, average=None, labels=range(num_classes), zero_division=0)
     recall = recall_score(labels, preds, average=None, labels=range(num_classes), zero_division=0)
     f1_per_class = f1_score(labels, preds, average=None, labels=range(num_classes), zero_division=0)
@@ -140,85 +166,61 @@ def compute_segmentation_metrics(preds, labels, num_classes, ignore_index=0):
     }
 
 
-def main():
-    args = parse_args()
+def get_latest_checkpoint(checkpoint_dir):
+    checkpoints = [f for f in os.listdir(checkpoint_dir) if f.endswith(".pth")]
+    if not checkpoints:
+        raise FileNotFoundError(f"No checkpoint found at {checkpoint_dir}")
+    return os.path.join(checkpoint_dir, checkpoints[-1])
 
-    # Configure CUDA
+
+def configure_device():
     print("CUDA Available:", torch.cuda.is_available())
     if torch.cuda.is_available():
-        print(f"GPU Total Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
+        print(
+            f"GPU Total Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB"
+        )
         print(f"GPU Allocated Memory: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
         print(f"GPU Reserved Memory: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
         print("CUDA Version:", torch.version.cuda)
     torch.cuda.empty_cache()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
+    return device
 
-    # Make sure the experiment exists
-    exp_dir = os.path.join(OUTPUT_CONFIG["checkpoints_dir"], args.exp_name)
-    with open(os.path.join(exp_dir, "config.pkl"), "rb") as f:
-        config = pickle.load(f)
 
-    # We need to load the model with the same configuration used for training
-    model = get_model(config["model"], num_classes=config["num_classes"], **{
-            k: v
-            for k, v in config.get("model_config", {}).items()
-            if k != "num_classes"
-        },
+def read_config():
+    with open("config.yml", "r") as file:
+        config = yaml.safe_load(file)
+    return config
+
+
+def parse_args(config):
+    parser = argparse.ArgumentParser(description="Model Evaluation")
+    parser.add_argument(
+        "-n",
+        "--experiment_name",
+        type=str,
+        required=True,
+        help="Experiment name",
     )
-    model = model.to(device)
-
-    checkpoint_saver = CheckpointSaver(model, exp_dir)
-
-    if args.checkpoint == "latest":
-        checkpoint_path = get_latest_checkpoint(exp_dir)
-    else:
-        checkpoint_path = os.path.join(exp_dir, args.checkpoint)
-    checkpoint_saver.load(checkpoint_path)
-
-    # ------ Data  Loading ------
-    data_config = DATA_CONFIG[args.database]
-    test_transform = get_validation_transforms(height=data_config["image_height"], width=data_config["image_width"])
-
-    test_dataset = NYUDepthV2Dataset(data_config["test_file"], 
-        transform=test_transform, 
-        split_name="test"
+    parser.add_argument(
+        "-b",
+        "--batch_size",
+        type=int,
+        default=config["train"]["batch_size"],
+        help="Batch size for evaluation",
     )
-    test_loader = DataLoader(
-        test_dataset,
-        batch_size=config.get("batch_size", TRAINING_CONFIG["batch_size"]),
-        drop_last=True,
-        shuffle=False,
-        num_workers=TRAINING_CONFIG["num_workers"]
+    parser.add_argument(
+        "--data",
+        type=str,
+        default="nyu_depth_v2",
+        choices=[key for key in config["data"].keys()],
+        help="Dataset to be used",
     )
-
-    results = test_model(model, test_loader, device, num_classes=config["num_classes"])
-    results_dir = os.path.join(OUTPUT_CONFIG["results_dir"], args.exp_name)
-
-    # Make sure the output directories exist
-    os.makedirs(results_dir, exist_ok=True)
-    with open(os.path.join(results_dir, "test_results.pkl"), "wb") as f:
-        pickle.dump(results, f)
-
-    plots_dir = os.path.join(OUTPUT_CONFIG["plots_dir"], args.exp_name)
-    os.makedirs(plots_dir, exist_ok=True)
-
-    cm_path = os.path.join(plots_dir, "confusion_matrix.png")
-    plot_confusion_matrix(results["confusion_matrix"], save_path=cm_path)
-
-    vis_path = os.path.join(plots_dir, "predictions.png")
-    visualize_predictions(model, test_loader, device, num_samples=4, save_path=vis_path)
-
-    with open(os.path.join(results_dir, "test_results.txt"), "w") as f:
-        f.write(f"Mean IoU: {results['mean_iou']:.4f}\n")
-        f.write(f"Weighted IoU: {results['weighted_iou']:.4f}\n")
-        f.write(f"Mean Dice: {results['mean_dice']:.4f}\n")
-        f.write(f"Pixel Accuracy: {results['pixel_acc']:.4f}\n")
-        f.write(f"F1 Score: {results['mean_f1']:.4f}\n")
-        f.write("\nIoU por classe:\n")
-        for i in range(config["num_classes"]):
-            f.write(f"  Classe {i}: {results['class_iou'][i]:.4f}\n")
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
-    main()
+    config = read_config()
+    args = parse_args(config)
+    main(args)

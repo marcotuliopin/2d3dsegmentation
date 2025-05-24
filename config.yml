@@ -1,0 +1,93 @@
+data:
+  nyu_depth_v2:
+    paths:
+      root_dir: data/NYUDepthv2_seg/data
+      train_file: data/NYUDepthv2_seg/data/train.parquet
+      test_file: data/NYUDepthv2_seg/data/test.parquet
+    
+    num_classes: 41
+    unlabeled_id: 40
+    
+    image_size: [224, 224]  # [height, width]
+    input_channels: 3
+    output_channels: 41
+    
+    normalization:
+      mean: [0.485, 0.456, 0.406]
+      std: [0.229, 0.224, 0.225]
+
+train:
+  batch_size: 8
+  num_workers: 4
+  epochs: 50
+  seed: 42
+  
+  optimizer:
+    adam:
+      learning_rate: 1e-4
+      betas: [0.9, 0.999]
+      weight_decay: 1e-3
+      eps: 1e-8
+    sgd:
+      learning_rate: 7e-3
+      momentum: 0.9
+      weight_decay: 1e-3
+      nesterov: False
+  
+  lr_scheduler:
+    plateau:
+      patience: 5
+      factor: 0.1
+      mode: min
+      threshold: 1e-4
+    step:
+      step_size: 10
+      gamma: 0.1
+  
+  early_stopping:
+    patience: 10
+    delta: 0.01
+    mode: "min"
+  
+  loss:
+    cross_entropy:
+      weight: None
+    dice_loss:
+      smooth: 1e-5
+    focal_loss:
+      alpha: 0.25
+      gamma: 2.0
+
+model:
+  common:
+    pretrained: True
+    dropout: 0.3
+    freeze_backbone: False
+  
+  fcn_resnet50:
+    backbone: "resnet50"
+    aux_loss: False
+  
+  fcn_resnet101:
+    backbone: "resnet101"
+    aux_loss: False
+  
+  deeplabv3_resnet50:
+    backbone: "resnet50"
+    output_stride: 16
+    aux_loss: True
+  
+  deeplabv3_resnet101:
+    backbone: "resnet101"
+    output_stride: 16
+    aux_loss: True
+  
+  unet_resnet50:
+    encoder: "resnet50"
+
+output:
+  directories:
+    checkpoints: "checkpoints"
+    results: "results"
+    plots: "plots"
+    logs: "logs"
