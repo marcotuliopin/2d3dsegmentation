@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import LinearSegmentedColormap, ListedColormap
 
 
 def plot_loss_curves(train_losses, val_losses, save_path=None):
@@ -82,6 +82,8 @@ def visualize_predictions(model, data_loader, device, num_samples=5, save_path=N
     
     with torch.no_grad():
         outputs = model(images)
+        if (isinstance(outputs, dict)):
+            outputs = outputs["out"]
         preds = torch.argmax(outputs, dim=1).cpu().numpy()
     
     # Denormalizar imagens
@@ -112,8 +114,7 @@ def visualize_predictions(model, data_loader, device, num_samples=5, save_path=N
     all_classes = sorted(all_classes)
     
     colors = get_color_map()
-    def get_color(class_id):
-        return colors[class_id % len(colors)]
+    cmap = ListedColormap(colors)
     
     # Create image grid
     fig = plt.figure(figsize=(18, 4*num_samples))
@@ -122,7 +123,7 @@ def visualize_predictions(model, data_loader, device, num_samples=5, save_path=N
     # Create patches for legend
     legend_patches = []
     for class_id in all_classes:
-        color = get_color(class_id)
+        color = cmap(class_id)
         class_name = id2label[str(class_id)] if id2label and str(class_id) in id2label else f"Class {class_id}"
         legend_patches.append(
             plt.Rectangle((0, 0), 1, 1, fc=color, 
@@ -139,13 +140,13 @@ def visualize_predictions(model, data_loader, device, num_samples=5, save_path=N
         
         # Ground Truth - Usar colormap personalizado
         ax2 = fig.add_subplot(gs[i, 1])
-        gt_img = ax2.imshow(masks[i], cmap=create_custom_cmap(colors), vmin=0, vmax=40)
+        gt_img = ax2.imshow(masks[i], cmap=cmap, vmin=0, vmax=len(colors)-1)
         ax2.set_title("Ground Truth")
         ax2.axis('off')
         
         # Predição - Usar colormap personalizado
         ax3 = fig.add_subplot(gs[i, 2])
-        pred_img = ax3.imshow(preds[i], cmap=create_custom_cmap(colors), vmin=0, vmax=40)
+        pred_img = ax3.imshow(preds[i], cmap=cmap, vmin=0, vmax=len(colors)-1)
         ax3.set_title("Predicted Mask")
         ax3.axis('off')
         
@@ -181,6 +182,8 @@ def get_color_map():
     
     tab20c = plt.cm.get_cmap('tab20c', 20)
     colors.extend([tab20c(i) for i in range(20)])
+
+    colors[0] = (0.0, 0.0, 0.0, 1.0)
 
     return colors
 
