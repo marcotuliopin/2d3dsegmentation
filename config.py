@@ -22,8 +22,8 @@ DATA_CONFIG = {
         "test_file": os.path.join(ROOT_DIR["nyu_depth_v2"], "test.parquet"),
         "unlabeled": 40,
         "num_classes": 41,
-        "image_height": 256,
-        "image_width": 256,
+        "image_height": 224,
+        "image_width": 224,
     }
 }
 
@@ -54,6 +54,10 @@ MODEL_CONFIGS = {
     "deeplabv3_resnet101": {
         "pretrained": False,
         "dropout": 0.2,
+    },
+    "unet_resnet50": {
+        "pretrained": False,
+        "dropout": 0.5,
     },
 }
 

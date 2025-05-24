@@ -51,9 +51,7 @@ def get_latest_checkpoint(checkpoint_dir):
     checkpoints = [f for f in os.listdir(checkpoint_dir) if f.endswith(".pth")]
     if not checkpoints:
         raise FileNotFoundError(f"No checkpoint found at {checkpoint_dir}")
-
-    sorted_checkpoints = sorted(checkpoints, key=lambda x: int(x.split("_")[-1].split(".")[0]))
-    return os.path.join(checkpoint_dir, sorted_checkpoints[-1])
+    return os.path.join(checkpoint_dir, checkpoints[-1])
 
 
 def test_model(model, data_loader, device, num_classes):
@@ -79,7 +77,7 @@ def test_model(model, data_loader, device, num_classes):
         preds=all_preds,
         labels=all_labels,
         num_classes=num_classes,
-        ignore_index=0
+        ignore_index=40
     )
 
 
