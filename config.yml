@@ -5,12 +5,11 @@ data:
       train_file: data/NYUDepthv2_seg/data/train.parquet
       test_file: data/NYUDepthv2_seg/data/test.parquet
     
-    num_classes: 41
-    unlabeled_id: 0
+    num_classes: 40
+    unlabeled_id: 255
     
     image_size: [224, 224]  # [height, width]
     input_channels: 3
-    output_channels: 41
     
     normalization:
       mean: [0.485, 0.456, 0.406]

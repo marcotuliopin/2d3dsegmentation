@@ -2,6 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 from PIL import Image
+import torch
 from torch.utils.data import Dataset
 from datasets import load_dataset
 
@@ -31,18 +32,28 @@ class SunRGBDDataset(Dataset):
 
 
 class NYUDepthV2Dataset(Dataset):
-    def __init__(self, path_file, transform=None, split_name="train"):
+    def __init__(self, path_file, transform=None, split_name="train", ignore_index=255):
         self.data = load_dataset("parquet", data_files={split_name: path_file})
         self.split_name = split_name
         self.transform = transform
+        self.num_classes = 40
+        self.ignore_index = ignore_index
 
     def __len__(self):
         return len(self.data[self.split_name])
 
     def __getitem__(self, idx):
         sample = self.data[self.split_name][idx]
-        image = sample["image"]
-        mask = sample["label"]
+        image = np.array(sample["image"].convert("RGB"))
+        mask = np.array(sample["label"].convert("L"))
+
+        # --- MASK PREPROCESSING ---
+        # 1. Mapping values:
+        #    - 0 (unlabeled) → -1 (ignore_index)
+        #    - 1-40 (valid classes) → 0-39
+        mask[mask == 0] = self.ignore_index  # Unlabeled
+        valid_classes_mask = (mask >= 1) & (mask != self.ignore_index)
+        mask[valid_classes_mask] -= 1  # Valid classes: 1-40 → 0-39
 
         if self.transform:
             transformed = self.transform(image=np.array(image), mask=np.array(mask))
@@ -51,3 +62,16 @@ class NYUDepthV2Dataset(Dataset):
             mask = mask.long()
 
         return image, mask
+
+
+def calculate_class_weights(dataloader, num_classes, ignore_index):
+    class_counts = np.zeros(num_classes)
+    for _, targets in dataloader:
+        valid_pixels = targets[targets != ignore_index]
+        unique, counts = torch.unique(valid_pixels, return_counts=True)
+        for cls, cnt in zip(unique, counts):
+            class_counts[cls] += cnt.item()
+
+    weights = 1.0 / (class_counts + 1e-6)
+    weights = weights / weights.sum()
+    return torch.tensor(weights, dtype=torch.float32)

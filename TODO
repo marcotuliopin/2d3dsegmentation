@@ -1,0 +1,9 @@
+Rodar sem augmentation.
+
+Fazer o weighted cross entropy.
+
+Testar valores maiores de patience.
+
+Corrigir o Dice Loss.
+
+Rodar com os pesos do backbone congelados.

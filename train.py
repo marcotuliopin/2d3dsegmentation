@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 import yaml
 
 from models.segmentation import get_model
-from utils.datasets import NYUDepthV2Dataset
+from utils.datasets import NYUDepthV2Dataset, calculate_class_weights
 from utils.transforms import get_training_transforms, get_validation_transforms
 from utils.training import (
     CheckpointSaver,
@@ -84,9 +84,8 @@ def main(args, config):
     model = model.to(device)
 
     # ------ Training Configurations ------
-    criterion = get_loss_function(
-        args.loss, config["train"]["loss"][args.loss], data_config["unlabeled_id"]
-    )
+    weight = calculate_class_weights(train_loader, data_config["num_classes"], data_config["unlabeled_id"])
+    criterion = get_loss_function(args.loss, config["train"]["loss"][args.loss], data_config["unlabeled_id"], weight.to(device))
     optimizer = get_optimizer(
         args.optimizer,
         model.parameters(),
@@ -175,9 +174,14 @@ def configure_device():
     return device
 
 
-def get_loss_function(loss_name, loss_config, ignore_index):
+def get_loss_function(loss_name, loss_config, ignore_index, weight):
     if loss_name == "cross_entropy":
         return nn.CrossEntropyLoss(
+            ignore_index=ignore_index,
+        )
+    elif loss_name == "weighted_cross_entropy":
+        return nn.CrossEntropyLoss(
+            weight=weight,
             ignore_index=ignore_index,
         )
     elif loss_name == "focal_loss":
@@ -345,7 +349,6 @@ def parse_args(config):
         action="store_true",
         help="Resume training from the latest checkpoint"
     )
-    return parser.parse_args()
     return parser.parse_args()
 
 
