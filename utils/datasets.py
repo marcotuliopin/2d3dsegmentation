@@ -71,7 +71,6 @@ def calculate_class_weights(dataloader, num_classes, ignore_index):
         unique, counts = torch.unique(valid_pixels, return_counts=True)
         for cls, cnt in zip(unique, counts):
             class_counts[cls] += cnt.item()
-
     weights = 1.0 / (class_counts + 1e-6)
     weights = weights / weights.sum()
     return torch.tensor(weights, dtype=torch.float32)

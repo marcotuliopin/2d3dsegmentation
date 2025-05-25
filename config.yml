@@ -8,7 +8,7 @@ data:
     num_classes: 40
     unlabeled_id: 255
     
-    image_size: [224, 224]  # [height, width]
+    image_size: [360, 480]  # [height, width]
     input_channels: 3
     
     normalization:
@@ -35,7 +35,7 @@ train:
   
   lr_scheduler:
     plateau:
-      patience: 5
+      patience: 7
       factor: 0.1
       mode: min
       threshold: 0.0001
@@ -46,12 +46,14 @@ train:
       power: 0.9
   
   early_stopping:
-    patience: 10
+    patience: 20
     delta: 0.01
     mode: "min"
   
   loss:
     cross_entropy:
+      weight: None
+    weighted_cross_entropy:
       weight: None
     dice_loss:
       smooth: 0.00001

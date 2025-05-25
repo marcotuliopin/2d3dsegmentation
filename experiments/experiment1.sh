@@ -47,6 +47,17 @@ cd "$PROJECT_ROOT"
 # echo "Evaluating experiment..."
 # python evaluate.py -n deeplabv3_resnet101_dice_plateau
 
+echo "Running experiment: UNet-Resnet50 With WCE and Plateau scheduler..."
+python train.py -n unet_resnet50_wce_plateau \
+    --optimizer adam \
+    --lr 1e-4 \
+    --scheduler plateau \
+    --loss weighted_cross_entropy \
+    --model unet_resnet50 \
+
+echo "Evaluating experiment..."
+python evaluate.py -n unet_resnet50_wce_plateau
+
 echo "Running experiment: UNet-Resnet50 With CE and Plateau scheduler..."
 python train.py -n unet_resnet50_ce_plateau \
     --optimizer adam \
