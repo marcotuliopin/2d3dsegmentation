@@ -1,5 +1,6 @@
-import torch.nn as nn
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 
 class FocalLoss(nn.Module):
@@ -20,7 +21,7 @@ class FocalLoss(nn.Module):
 
 
 class DiceLoss(nn.Module):
-    def __init__(self, smooth=1, ignore_index=None):
+    def __init__(self, smooth=1e-5, ignore_index=None):
         super().__init__()
         self.ignore_index = ignore_index
         self.smooth = smooth
@@ -28,17 +29,39 @@ class DiceLoss(nn.Module):
     def forward(self, logits, targets):
         num_classes = logits.shape[1]
 
+        # Apply softmax to get class probabilities
         probs = torch.softmax(logits, dim=1)
-        targets_one_hot = torch.nn.functional.one_hot(targets, num_classes=num_classes)
-        targets_one_hot = targets_one_hot.permute(0, 3, 1, 2).float()
 
+        # Create mask for ignored indices if needed
+        mask = None
         if self.ignore_index is not None:
-            mask = (targets != self.ignore_index).unsqueeze(1)
-            probs = probs * mask
-            targets_one_hot = targets_one_hot * mask
+            mask = (targets != self.ignore_index).float()
 
-        intersection = (probs * targets_one_hot).sum(dim=(0, 2, 3))
-        union = probs.sum(dim=(0, 2, 3)) + targets_one_hot.sum(dim=(0, 2, 3))
+        # Initialize dice score
+        dice_score = 0.0
 
-        dice = (2. * intersection + self.smooth) / (union + self.smooth)
-        return 1 - dice.mean()
+        # Calculate dice for each class (avoiding one-hot encoding)
+        for cls in range(num_classes):
+            # Binary mask for current class
+            target_cls = (targets == cls).float()
+            prob_cls = probs[:, cls]
+
+            # Apply ignore mask if needed
+            if mask is not None:
+                target_cls = target_cls * mask
+                prob_cls = prob_cls * mask
+
+            # Flatten tensors for simpler computation
+            target_cls_flat = target_cls.reshape(-1)
+            prob_cls_flat = prob_cls.reshape(-1)
+
+            # Calculate intersection and union
+            intersection = (prob_cls_flat * target_cls_flat).sum()
+            union = prob_cls_flat.sum() + target_cls_flat.sum()
+
+            # Calculate dice coefficient for this class
+            class_dice = (2. * intersection + self.smooth) / (union + self.smooth)
+            dice_score += class_dice
+
+        # Average over all classes
+        return 1.0 - (dice_score / num_classes)
