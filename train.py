@@ -1,11 +1,11 @@
+import datetime
 import os
 import pickle
 import argparse
+import yaml
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, Subset
-from sklearn.model_selection import train_test_split
-import yaml
+from torch.utils.data import DataLoader
 
 from models.segmentation import get_model
 from utils.datasets import NYUDepthV2Dataset, calculate_class_weights
@@ -16,6 +16,73 @@ from utils.training import (
     Trainer,
 )
 from utils.visualization import plot_loss_curves
+
+
+def parse_args(config):
+    parser = argparse.ArgumentParser(description="Segmentation Training Script")
+    parser.add_argument(
+        "--model",
+        type=str,
+        choices=[key for key in config["model"].keys() if key != "common"],
+        help="Model to be used",
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=config["train"]["batch_size"],
+        help="Batch size",
+    )
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=config["train"]["epochs"],
+        help="Number of epochs",
+    )
+    parser.add_argument(
+        "--data",
+        type=str,
+        default="nyu_depth_v2",
+        choices=[key for key in config["data"].keys()],
+        help="Dataset to be used",
+    )
+    parser.add_argument(
+        "--optimizer",
+        type=str,
+        choices=[key for key in config["train"]["optimizer"]],
+        help="Optimizer to be used",
+    )
+    parser.add_argument("--lr", type=float, help="Learning rate")
+    parser.add_argument(
+        "--scheduler",
+        type=str,
+        choices=[key for key in config["train"]["lr_scheduler"]],
+        help="Scheduler to be used",
+    )
+    parser.add_argument(
+        "--patience",
+        type=int,
+        default=config["train"]["early_stopping"]["patience"],
+        help="Patience for early stopping",
+    )
+    parser.add_argument(
+        "--loss",
+        type=str,
+        choices=[key for key in config["train"]["loss"]],
+        help="Loss function to be used",
+    )
+    parser.add_argument(
+        "-n",
+        "--experiment_name",
+        type=str,
+        default="experiment",
+        help="Experiment name",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume training from the latest checkpoint"
+    )
+    return parser.parse_args()
 
 
 def main(args, config):
@@ -34,41 +101,19 @@ def main(args, config):
 
     # ------ Data  Loading ------
     data_config = config["data"][args.data].copy()
-    train_transform = get_training_transforms(
-        height=data_config["image_size"][0], width=data_config["image_size"][1]
-    )
-    val_transform = get_validation_transforms(
-        height=data_config["image_size"][0], width=data_config["image_size"][1]
-    )
 
-    full_dataset = NYUDepthV2Dataset(
-        path_file=data_config["paths"]["train_file"], transform=None
-    )
-    indices = list(range(len(full_dataset)))
-    train_indices, val_indices = train_test_split(
-        indices, test_size=0.2, random_state=config["train"]["seed"], shuffle=True
-    )
-
-    train_dataset = Subset(
-        NYUDepthV2Dataset(
-            data_config["paths"]["train_file"], transform=train_transform
-        ),
-        train_indices,
-    )
-    val_dataset = Subset(
-        NYUDepthV2Dataset(data_config["paths"]["train_file"], transform=val_transform),
-        val_indices,
-    )
+    train_transform = get_training_transforms(height=data_config["image_size"][0], width=data_config["image_size"][1])
+    val_transform = get_validation_transforms(height=data_config["image_size"][0], width=data_config["image_size"][1])
 
     train_loader = DataLoader(
-        train_dataset,
+        NYUDepthV2Dataset(path_file=data_config["paths"]["train_file"], transform=train_transform),
         batch_size=args.batch_size,
         drop_last=True,
         shuffle=True,
         num_workers=config["train"]["num_workers"],
     )
     val_loader = DataLoader(
-        val_dataset,
+        NYUDepthV2Dataset(path_file=data_config["paths"]["val_file"], transform=val_transform),
         batch_size=args.batch_size,
         drop_last=True,
         shuffle=False,
@@ -124,11 +169,7 @@ def main(args, config):
         else:
             scheduler.step()
 
-        loss_path = os.path.join(exp_dir, f"{args.experiment_name}_losses.pkl")
-        with open(loss_path, "wb") as f:
-            pickle.dump({"train": train_losses, "val": val_losses}, f)
-
-        print(f"End of epoch {epoch}:")
+        print(f"End of epoch {epoch} of experiment {args.experiment_name}:")
         print(f"  train loss: {train_loss:.4f}")
         print(f"  val loss: {val_loss:.4f}")
 
@@ -285,74 +326,52 @@ def read_config():
     return config
 
 
-def parse_args(config):
-    parser = argparse.ArgumentParser(description="Segmentation Training Script")
-    parser.add_argument(
-        "--model",
-        type=str,
-        choices=[key for key in config["model"].keys() if key != "common"],
-        help="Model to be used",
+def save_experiment_config(config, args):
+    exp_dir = os.path.join(config["output"]["directories"]["checkpoints"], args.experiment_name)
+    os.makedirs(exp_dir, exist_ok=True)
+    os.makedirs(
+        os.path.join(config["output"]["directories"]["plots"], args.experiment_name),
+        exist_ok=True,
     )
-    parser.add_argument(
-        "--batch_size",
-        type=int,
-        default=config["train"]["batch_size"],
-        help="Batch size",
-    )
-    parser.add_argument(
-        "--epochs",
-        type=int,
-        default=config["train"]["epochs"],
-        help="Number of epochs",
-    )
-    parser.add_argument(
-        "--data",
-        type=str,
-        default="nyu_depth_v2",
-        choices=[key for key in config["data"].keys()],
-        help="Dataset to be used",
-    )
-    parser.add_argument(
-        "--optimizer",
-        type=str,
-        choices=[key for key in config["train"]["optimizer"]],
-        help="Optimizer to be used",
-    )
-    parser.add_argument("--lr", type=float, help="Learning rate")
-    parser.add_argument(
-        "--scheduler",
-        type=str,
-        choices=[key for key in config["train"]["lr_scheduler"]],
-        help="Scheduler to be used",
-    )
-    parser.add_argument(
-        "--patience",
-        type=int,
-        default=config["train"]["early_stopping"]["patience"],
-        help="Patience for early stopping",
-    )
-    parser.add_argument(
-        "--loss",
-        type=str,
-        choices=[key for key in config["train"]["loss"]],
-        help="Loss function to be used",
-    )
-    parser.add_argument(
-        "-n",
-        "--experiment_name",
-        type=str,
-        default="experiment",
-        help="Experiment name",
-    )
-    parser.add_argument(
-        "--resume",
-        action="store_true",
-        help="Resume training from the latest checkpoint"
-    )
-    return parser.parse_args()
+
+    experiment_config = {
+        "batch_size": args.batch_size,
+        "epochs": args.epochs,
+        "lr": args.lr,
+        "num_classes": config["data"][args.data]["num_classes"],
+        "model": args.model,
+        "model_config": config["model"][args.model],
+        "loss": args.loss,
+        "optimizer": args.optimizer,
+        "optimizer_config": config["train"]["optimizer"][args.optimizer],
+        "scheduler": args.scheduler,
+        "scheduler_config": config["train"]["lr_scheduler"][args.scheduler],
+        "image_size": config["data"][args.data]["image_size"],
+        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
+    }
+
+    with open(os.path.join(exp_dir, "config.pkl"), "wb") as f:
+        pickle.dump(experiment_config, f)
+
+    def sanitize_config(item):
+        if isinstance(item, dict):
+            return {k: sanitize_config(v) for k, v in item.items()}
+        elif isinstance(item, list):
+            return [sanitize_config(v) for v in item]
+        elif isinstance(item, (int, float, str, bool, type(None))):
+            return item
+        else:
+            return str(item)
+    
+    experiment_config = sanitize_config(experiment_config)
+    
+    config_path = os.path.join(exp_dir, f"{args.experiment_name}_config.yml")
+    with open(config_path, 'w', encoding='utf-8') as f:
+        yaml.dump(experiment_config, f, default_flow_style=False, encoding=None)
 
 
 if __name__ == "__main__":
     config = read_config()
     args = parse_args(config)
+    save_experiment_config(config, args)
     main(args, config)
