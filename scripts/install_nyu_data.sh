@@ -7,4 +7,3 @@ rm -rf data/NYUDepthv2_seg/.git data/NYUDepthv2_seg/.gitattributes
 
 mv data/NYUDepthv2_seg/data/train-00000-of-00001.parquet data/NYUDepthv2_seg/data/train.parquet
 mv data/NYUDepthv2_seg/data/test-00000-of-00001.parquet data/NYUDepthv2_seg/data/test.parquet
-

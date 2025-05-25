@@ -1,96 +1,92 @@
 data:
   nyu_depth_v2:
+    image_size:
+    - 360
+    - 480
+    input_channels: 3
+    normalization:
+      mean:
+      - 0.485
+      - 0.456
+      - 0.406
+      std:
+      - 0.229
+      - 0.224
+      - 0.225
+    num_classes: 40
     paths:
       root_dir: data/NYUDepthv2_seg/data
-      train_file: data/NYUDepthv2_seg/data/train.parquet
       test_file: data/NYUDepthv2_seg/data/test.parquet
-    
-    num_classes: 40
+      train_file: data/NYUDepthv2_seg/data/split_train.parquet
+      val_file: data/NYUDepthv2_seg/data/split_val.parquet
     unlabeled_id: 255
-    
-    image_size: [360, 480]  # [height, width]
-    input_channels: 3
-    
-    normalization:
-      mean: [0.485, 0.456, 0.406]
-      std: [0.229, 0.224, 0.225]
-
+model:
+  common:
+    dropout: 0.3
+    freeze_backbone: false
+    pretrained: true
+  deeplabv3_resnet101:
+    aux_loss: true
+    backbone: resnet101
+    output_stride: 16
+  deeplabv3_resnet50:
+    aux_loss: true
+    backbone: resnet50
+    output_stride: 16
+  fcn_resnet101:
+    aux_loss: false
+    backbone: resnet101
+  fcn_resnet50:
+    aux_loss: false
+    backbone: resnet50
+  unet_resnet50:
+    encoder: resnet50
+output:
+  directories:
+    checkpoints: checkpoints
+    logs: logs
+    plots: plots
+    results: results
 train:
   batch_size: 8
-  num_workers: 4
-  epochs: 300
-  seed: 42
-  
-  optimizer:
-    adam:
-      learning_rate: 0.005
-      betas: [0.9, 0.999]
-      weight_decay: 0.001
-      eps: 0.00000001
-    sgd:
-      learning_rate: 0.007
-      momentum: 0.9
-      weight_decay: 0.001
-      nesterov: False
-  
-  lr_scheduler:
-    plateau:
-      patience: 7
-      factor: 0.1
-      mode: min
-      threshold: 0.0001
-    step:
-      step_size: 10
-      gamma: 0.1
-    polynomial:
-      power: 0.9
-  
   early_stopping:
-    patience: 20
     delta: 0.01
-    mode: "min"
-  
+    mode: min
+    patience: 20
+  epochs: 300
   loss:
     cross_entropy:
       weight: None
-    weighted_cross_entropy:
-      weight: None
     dice_loss:
-      smooth: 0.00001
+      smooth: 1.0e-05
     focal_loss:
       alpha: 0.25
       gamma: 2.0
-
-model:
-  common:
-    pretrained: True
-    dropout: 0.3
-    freeze_backbone: False
-  
-  fcn_resnet50:
-    backbone: "resnet50"
-    aux_loss: False
-  
-  fcn_resnet101:
-    backbone: "resnet101"
-    aux_loss: False
-  
-  deeplabv3_resnet50:
-    backbone: "resnet50"
-    output_stride: 16
-    aux_loss: True
-  
-  deeplabv3_resnet101:
-    backbone: "resnet101"
-    output_stride: 16
-    aux_loss: True
-  
-  unet_resnet50:
-    encoder: "resnet50"
-
-output:
-  directories:
-    checkpoints: "checkpoints"
-    results: "results"
-    plots: "plots"
-    logs: "logs"
+    weighted_cross_entropy:
+      weight: None
+  lr_scheduler:
+    plateau:
+      factor: 0.1
+      mode: min
+      patience: 7
+      threshold: 0.0001
+    polynomial:
+      power: 0.9
+    step:
+      gamma: 0.1
+      step_size: 10
+  num_workers: 4
+  optimizer:
+    adam:
+      betas:
+      - 0.9
+      - 0.999
+      eps: 1.0e-08
+      learning_rate: 0.005
+      weight_decay: 0.001
+    sgd:
+      learning_rate: 0.007
+      momentum: 0.9
+      nesterov: false
+      weight_decay: 0.001
+  seed: 42
