@@ -7,3 +7,5 @@ Testar valores maiores de patience.
 Corrigir o Dice Loss.
 
 Rodar com os pesos do backbone congelados.
+
+Testar usar o mIoU do set de validação no early stopping.
