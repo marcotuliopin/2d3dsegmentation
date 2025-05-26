@@ -20,40 +20,45 @@ data:
       train_file: data/NYUDepthv2_seg/data/split_train.parquet
       val_file: data/NYUDepthv2_seg/data/split_val.parquet
     unlabeled_id: 255
+
 model:
   common:
     dropout: 0.3
-    freeze_backbone: false
+    freeze_backbone: true
     pretrained: true
   deeplabv3_resnet101:
-    aux_loss: true
     backbone: resnet101
     output_stride: 16
   deeplabv3_resnet50:
-    aux_loss: true
     backbone: resnet50
     output_stride: 16
   fcn_resnet101:
-    aux_loss: false
     backbone: resnet101
   fcn_resnet50:
-    aux_loss: false
     backbone: resnet50
   unet_resnet50:
     encoder: resnet50
+  unet_resnet101:
+    encoder: resnet101
+
 output:
   directories:
     checkpoints: checkpoints
     logs: logs
     plots: plots
     results: results
+
 train:
+  seed: 42
   batch_size: 8
+  epochs: 300
+  num_workers: 4
+
   early_stopping:
     delta: 0.01
     mode: min
-    patience: 20
-  epochs: 300
+    patience: 15
+
   loss:
     cross_entropy:
       weight: None
@@ -64,18 +69,19 @@ train:
       gamma: 2.0
     weighted_cross_entropy:
       weight: None
+
   lr_scheduler:
     plateau:
       factor: 0.1
       mode: min
-      patience: 7
+      patience: 5
       threshold: 0.0001
     polynomial:
       power: 0.9
     step:
       gamma: 0.1
       step_size: 10
-  num_workers: 4
+
   optimizer:
     adam:
       betas:
@@ -89,4 +95,3 @@ train:
       momentum: 0.9
       nesterov: false
       weight_decay: 0.001
-  seed: 42

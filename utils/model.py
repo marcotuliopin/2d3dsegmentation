@@ -1,3 +1,4 @@
+
 from models.deeplabv3_resnet101 import get_deeplabv3_resnet101
 from models.deeplabv3_resnet50 import get_deeplabv3_resnet50
 from models.fcn_resnet101 import get_fcn_resnet101
@@ -19,3 +20,4 @@ def get_model(name, **kwargs):
         raise ValueError(f"Model {name} não suportado. Opções: {list(models.keys())}")
     
     return models[name](**kwargs)
+

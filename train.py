@@ -7,8 +7,8 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from models.segmentation import get_model
 from utils.datasets import NYUDepthV2Dataset, calculate_class_weights
+from utils.model import get_model
 from utils.transforms import get_training_transforms, get_validation_transforms
 from utils.training import (
     CheckpointSaver,
@@ -123,9 +123,7 @@ def main(args, config):
     # ------ Model Configuration ------
     model_config = config["model"]["common"].copy()
     model_config.update(config["model"][args.model])
-    model = get_model(
-        args.model, num_classes=data_config["num_classes"], **model_config
-    )
+    model = get_model(args.model, num_classes=data_config["num_classes"], **model_config)
     model = model.to(device)
 
     # ------ Training Configurations ------

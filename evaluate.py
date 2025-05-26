@@ -8,11 +8,37 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import yaml
 
-from models.segmentation import get_model
 from utils.datasets import NYUDepthV2Dataset
+from utils.model import get_model
 from utils.transforms import get_validation_transforms
 from utils.training import CheckpointSaver
 from utils.visualization import plot_confusion_matrix, visualize_predictions
+
+
+def parse_args(config):
+    parser = argparse.ArgumentParser(description="Model Evaluation")
+    parser.add_argument(
+        "-n",
+        "--experiment_name",
+        type=str,
+        required=True,
+        help="Experiment name",
+    )
+    parser.add_argument(
+        "-b",
+        "--batch_size",
+        type=int,
+        default=config["train"]["batch_size"],
+        help="Batch size for evaluation",
+    )
+    parser.add_argument(
+        "--data",
+        type=str,
+        default="nyu_depth_v2",
+        choices=[key for key in config["data"].keys()],
+        help="Dataset to be used",
+    )
+    return parser.parse_args()
 
 
 def main(args, config):
@@ -195,32 +221,6 @@ def read_config():
     with open("config.yml", "r") as file:
         config = yaml.safe_load(file)
     return config
-
-
-def parse_args(config):
-    parser = argparse.ArgumentParser(description="Model Evaluation")
-    parser.add_argument(
-        "-n",
-        "--experiment_name",
-        type=str,
-        required=True,
-        help="Experiment name",
-    )
-    parser.add_argument(
-        "-b",
-        "--batch_size",
-        type=int,
-        default=config["train"]["batch_size"],
-        help="Batch size for evaluation",
-    )
-    parser.add_argument(
-        "--data",
-        type=str,
-        default="nyu_depth_v2",
-        choices=[key for key in config["data"].keys()],
-        help="Dataset to be used",
-    )
-    return parser.parse_args()
 
 
 if __name__ == "__main__":

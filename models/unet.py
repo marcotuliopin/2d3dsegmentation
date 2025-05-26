@@ -27,6 +27,6 @@ class UNet(nn.Module):
         return self.unet(x)
 
 
-def get_unet_resnet(num_classes, dropout=0.3, in_channels=3, freeze_backbone=False, pretrained=True, encoder="resnet50"):
+def get_unet(num_classes, dropout=0.3, in_channels=3, freeze_backbone=False, pretrained=True, encoder="resnet50"):
     print(f"Using model: UNet with {encoder} encoder")
     return UNet(num_classes=num_classes, dropout=dropout, in_channels=in_channels, freeze_backbone=freeze_backbone, pretrained=pretrained, encoder=encoder)
