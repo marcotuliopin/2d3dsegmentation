@@ -152,9 +152,14 @@ def main(args, config):
         checkpoint_saver=checkpoint_saver,
     )
 
-    start_epoch, train_losses, val_losses = load_checkpoint( args.resume, checkpoint_saver, exp_dir)
+    start_epoch = 0
+    if args.resume:
+        start_epoch = load_checkpoint(checkpoint_saver, exp_dir)
 
     trainer = Trainer(model, optimizer, criterion, device)
+
+    train_losses = []
+    val_losses = []
 
     # ------ Training ------
     for epoch in range(start_epoch, args.epochs):
@@ -227,7 +232,6 @@ def get_loss_function(loss_name, loss_config, ignore_index, weight):
         )
     elif loss_name == "focal_loss":
         from utils.losses import FocalLoss
-
         return FocalLoss(
             alpha=loss_config["alpha"],
             gamma=loss_config["gamma"],
@@ -235,7 +239,6 @@ def get_loss_function(loss_name, loss_config, ignore_index, weight):
         )
     elif loss_name == "dice_loss":
         from utils.losses import DiceLoss
-
         return DiceLoss(
             smooth=loss_config["smooth"],
             ignore_index=ignore_index,
@@ -264,9 +267,7 @@ def get_optimizer(optimizer_name, model_params, optimizer_config, lr):
         raise ValueError(f"Unknown optimizer: {optimizer_name}")
 
 
-def get_scheduler(
-    scheduler_name, optimizer, scheduler_config, batch_size, num_epochs, len_dataloader
-):
+def get_scheduler(scheduler_name, optimizer, scheduler_config, batch_size, num_epochs, len_dataloader):
     if scheduler_name == "step":
         return torch.optim.lr_scheduler.StepLR(
             optimizer,
@@ -290,34 +291,16 @@ def get_scheduler(
         raise ValueError(f"Unknown scheduler: {scheduler_name}")
 
 
-def load_checkpoint(resume, checkpoint_saver, exp_dir):
+def load_checkpoint(checkpoint_saver, exp_dir):
     start_epoch = 0
-    if resume:
-        checkpoint_path = os.path.join(exp_dir, "checkpoint.pth")
-        if os.path.exists(checkpoint_path):
-            start_epoch = checkpoint_saver.load(checkpoint_path)
-            print(f"Resuming training from epoch {start_epoch}")
-            
-            # Carregar histórico de perdas se existir
-            loss_path = os.path.join(exp_dir, f"{args.experiment_name}_losses.pkl")
-            if os.path.exists(loss_path):
-                with open(loss_path, "rb") as f:
-                    losses_dict = pickle.load(f)
-                    train_losses = losses_dict.get("train", [])
-                    val_losses = losses_dict.get("val", [])
-                    print(f"Loaded training history with {len(train_losses)} epochs")
-            else:
-                train_losses = []
-                val_losses = []
-        else:
-            print(f"No checkpoint found at {checkpoint_path}, starting training from scratch.")
-            train_losses = []
-            val_losses = []
+    checkpoint_path = os.path.join(exp_dir, "checkpoint.pth")
+    if os.path.exists(checkpoint_path):
+        start_epoch = checkpoint_saver.load(checkpoint_path)
+        print(f"Resuming training from epoch {start_epoch}")
     else:
-        train_losses = []
-        val_losses = []
+        print(f"No checkpoint found at {checkpoint_path}, starting training from scratch.")
 
-    return start_epoch, train_losses, val_losses
+    return start_epoch
 
 
 def read_config():
