@@ -45,18 +45,6 @@ def split_parquet_dataset(
         "total_samples": len(dataset)
     }
 
-def update_config(config_path, split_info):
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-    
-    for dataset in config['data']:
-        if 'paths' in config['data'][dataset] and 'train_file' in config['data'][dataset]['paths']:
-            config['data'][dataset]['paths']['val_file'] = split_info['val_file']
-    
-    with open(config_path, 'w') as f:
-        yaml.dump(config, f, default_flow_style=False)
-    
-    print(f"Updated config file: {config_path}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Split a parquet dataset into train and validation sets')
@@ -82,5 +70,3 @@ if __name__ == "__main__":
         args.val_size,
         args.seed
     )
-   
-    update_config(args.config, split_info)
