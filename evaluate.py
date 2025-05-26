@@ -85,8 +85,6 @@ def main(args, config):
 
     # Make sure the output directories exist
     os.makedirs(results_dir, exist_ok=True)
-    with open(os.path.join(results_dir, "test_results.pkl"), "wb") as f:
-        pickle.dump(results, f)
 
     plots_dir = os.path.join(config["output"]["directories"]["plots"], args.experiment_name)
     os.makedirs(plots_dir, exist_ok=True)
