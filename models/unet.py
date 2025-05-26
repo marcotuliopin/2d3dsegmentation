@@ -20,11 +20,14 @@ class UNet(nn.Module):
             self.unet.decoder.blocks[i].dropout = nn.Dropout2d(p=dropout)
         
         if freeze_backbone:
-            for param in self.unet.encoder.parameters():
-                param.requires_grad = False
+            self.set_trainable(trainable=False)
 
     def forward(self, x):
         return self.unet(x)
+    
+    def set_trainable(self, trainable=True):
+        for param in self.unet.encoder.parameters():
+            param.requires_grad = trainable
 
 
 def get_unet(num_classes, dropout=0.3, in_channels=3, freeze_backbone=False, pretrained=True, encoder="resnet50"):

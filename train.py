@@ -149,7 +149,13 @@ def main(args, config):
     in_channels = 4 if args.use_depth else 3
     model_config = config["model"]["common"].copy()
     model_config.update(config["model"][args.model])
-    model = get_model(args.model, num_classes=data_config["num_classes"], in_channels=in_channels, **model_config)
+    model = get_model(
+        args.model,
+        num_classes=data_config["num_classes"],
+        in_channels=in_channels,
+        freeze_backbone=args.freeze_backbone,
+        **model_config,
+    )
     model = model.to(device)
 
     # ------ Training Configurations ------
@@ -187,6 +193,9 @@ def main(args, config):
 
     # ------ Training ------
     for epoch in range(start_epoch, args.epochs):
+        if epoch == 5:
+            model.set_trainable(trainable=True)
+
         train_loss = trainer.train_epoch(train_loader, epoch)
         val_loss = trainer.validate(val_loader, epoch)
 
