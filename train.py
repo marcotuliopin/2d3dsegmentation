@@ -72,7 +72,7 @@ def parse_args(config):
     )
     parser.add_argument(
         "-n",
-        "--experiment_name",
+        "--experiment-name",
         type=str,
         default="experiment",
         help="Experiment name",
@@ -90,9 +90,14 @@ def parse_args(config):
         help="Random seed for reproducibility",
     )
     parser.add_argument(
-        "--freeze_backbone",
+        "--freeze-backbone",
         action="store_true",
         help="Freeze the backbone during training",
+    )
+    parser.add_argument(
+        "--use-depth",
+        action="store_true",
+        help="Use depth as a fourth channel in the input",
     )
     return parser.parse_args()
 
@@ -118,14 +123,22 @@ def main(args, config):
     val_transform = get_validation_transforms(height=data_config["image_size"][0], width=data_config["image_size"][1])
 
     train_loader = DataLoader(
-        NYUDepthV2Dataset(path_file=data_config["paths"]["train_file"], transform=train_transform),
+        NYUDepthV2Dataset(
+            path_file=data_config["paths"]["train_file"],
+            transform=train_transform,
+            use_depth=args.use_depth,
+        ),
         batch_size=args.batch_size,
         drop_last=True,
         shuffle=True,
         num_workers=config["train"]["num_workers"],
     )
     val_loader = DataLoader(
-        NYUDepthV2Dataset(path_file=data_config["paths"]["val_file"], transform=val_transform),
+        NYUDepthV2Dataset(
+            path_file=data_config["paths"]["val_file"],
+            transform=val_transform,
+            use_depth=args.use_depth,
+        ),
         batch_size=args.batch_size,
         drop_last=True,
         shuffle=False,
@@ -133,9 +146,10 @@ def main(args, config):
     )
 
     # ------ Model Configuration ------
+    in_channels = 4 if args.use_depth else 3
     model_config = config["model"]["common"].copy()
     model_config.update(config["model"][args.model])
-    model = get_model(args.model, num_classes=data_config["num_classes"], **model_config)
+    model = get_model(args.model, num_classes=data_config["num_classes"], in_channels=in_channels, **model_config)
     model = model.to(device)
 
     # ------ Training Configurations ------
@@ -198,19 +212,6 @@ def main(args, config):
         "loss_curves.png",
     )
     plot_loss_curves(train_losses, val_losses, save_path=plot_path)
-
-    # Save experiment config
-    config = {
-        "model": args.model,
-        "batch_size": args.batch_size,
-        "epochs": args.epochs,
-        "lr": args.lr,
-        "num_classes": data_config["num_classes"],
-        "model_config": model_config,
-    }
-
-    with open(os.path.join(exp_dir, "config.pkl"), "wb") as f:
-        pickle.dump(config, f)
 
     print(f"Training complete. Results saved in {exp_dir}")
 
@@ -339,6 +340,8 @@ def save_experiment_config(config, args):
         "optimizer_config": config["train"]["optimizer"][args.optimizer],
         "scheduler": args.scheduler,
         "scheduler_config": config["train"]["lr_scheduler"][args.scheduler],
+        "freeze_backbone": args.freeze_backbone,
+        "use_depth": args.use_depth,
         "image_size": config["data"][args.data]["image_size"],
         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
     }

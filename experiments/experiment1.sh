@@ -47,37 +47,38 @@ cd "$PROJECT_ROOT"
 # echo "Evaluating experiment..."
 # python evaluate.py -n deeplabv3_resnet101_dice_plateau
 
-echo "Running experiment: UNet-Resnet50 With WCE and Plateau scheduler..."
-python train.py -n unet_resnet50_wce_plateau \
-    --optimizer adam \
-    --lr 1e-4 \
-    --scheduler plateau \
-    --loss weighted_cross_entropy \
-    --model unet_resnet50 \
+# echo "Running experiment: UNet-Resnet50 With WCE and Plateau scheduler..."
+# python train.py -n unet_resnet50_depth \
+#     --optimizer adam \
+#     --lr 1e-4 \
+#     --scheduler plateau \
+#     --loss cross_entropy \
+#     --model unet_resnet50 \
+#     --use-depth
 
 echo "Evaluating experiment..."
-python evaluate.py -n unet_resnet50_wce_plateau
+python evaluate.py -n unet_resnet50_depth
 
-echo "Running experiment: UNet-Resnet50 With CE and Plateau scheduler..."
-python train.py -n unet_resnet50_ce_plateau \
-    --optimizer adam \
-    --lr 1e-4 \
-    --scheduler plateau \
-    --loss cross_entropy \
-    --model unet_resnet50 \
+# echo "Running experiment: UNet-Resnet50 With CE and Plateau scheduler..."
+# python train.py -n unet_resnet50_ce_plateau \
+#     --optimizer adam \
+#     --lr 1e-4 \
+#     --scheduler plateau \
+#     --loss cross_entropy \
+#     --model unet_resnet50 \
 
-echo "Evaluating experiment..."
-python evaluate.py -n unet_resnet50_ce_plateau
+# echo "Evaluating experiment..."
+# python evaluate.py -n unet_resnet50_ce_plateau
 
-echo "Running experiment:  With Cross Entropy Loss and Plateau scheduler..."
-python train.py -n deeplabv3_resnet101_ce_plateau \
-    --optimizer adam \
-    --lr 1e-4 \
-    --scheduler plateau \
-    --loss cross_entropy \
-    --model deeplabv3_resnet101 \
+# echo "Running experiment:  With Cross Entropy Loss and Plateau scheduler..."
+# python train.py -n deeplabv3_resnet101_ce_plateau \
+#     --optimizer adam \
+#     --lr 1e-4 \
+#     --scheduler plateau \
+#     --loss cross_entropy \
+#     --model deeplabv3_resnet101 \
 
-echo "Evaluating experiment..."
-python evaluate.py -n deeplabv3_resnet101_ce_plateau
+# echo "Evaluating experiment..."
+# python evaluate.py -n deeplabv3_resnet101_ce_plateau
 
 echo "Experiments completed."

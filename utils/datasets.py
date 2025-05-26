@@ -32,12 +32,13 @@ class SunRGBDDataset(Dataset):
 
 
 class NYUDepthV2Dataset(Dataset):
-    def __init__(self, path_file, transform=None, split_name="train", ignore_index=255):
+    def __init__(self, path_file, transform=None, split_name="train", ignore_index=255, use_depth=False):
         self.data = load_dataset("parquet", data_files={split_name: path_file})
         self.split_name = split_name
         self.transform = transform
         self.num_classes = 40
         self.ignore_index = ignore_index
+        self.use_depth = use_depth
 
     def __len__(self):
         return len(self.data[self.split_name])
@@ -46,6 +47,11 @@ class NYUDepthV2Dataset(Dataset):
         sample = self.data[self.split_name][idx]
         image = np.array(sample["image"].convert("RGB"))
         mask = np.array(sample["label"].convert("L"))
+
+        if self.use_depth:
+            depth = np.array(sample["depth"].convert("L"))
+            depth = depth[..., np.newaxis]  # (H, W) → (H, W, 1)
+            image = np.concatenate((image, depth), axis=2)
 
         # --- MASK PREPROCESSING ---
         # 1. Mapping values:

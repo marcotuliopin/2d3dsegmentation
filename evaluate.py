@@ -58,7 +58,10 @@ def main(args, config):
         exp_config = pickle.load(f)
 
     # We need to load the model with the same configuration used for training
-    model = get_model(exp_config["model"], num_classes=exp_config["num_classes"], **{
+    in_channels = 4 if exp_config["use_depth"] else 3
+    model = get_model(exp_config["model"], 
+        num_classes=exp_config["num_classes"], 
+        in_channels=in_channels, **{
             k: v
             for k, v in exp_config.get("model_config", {}).items()
             if k != "num_classes"
@@ -74,9 +77,11 @@ def main(args, config):
     data_config = config["data"][args.data]
     test_transform = get_validation_transforms(height=data_config["image_size"][0], width=data_config["image_size"][1])
 
-    test_dataset = NYUDepthV2Dataset(data_config["paths"]["test_file"], 
+    test_dataset = NYUDepthV2Dataset(
+        data_config["paths"]["test_file"], 
         transform=test_transform, 
-        split_name="test"
+        split_name="test",
+        use_depth=exp_config["use_depth"]
     )
     test_loader = DataLoader(
         test_dataset,
@@ -143,7 +148,7 @@ def test_model(model, data_loader, device, num_classes, unlabeled_id):
     )
 
 
-def compute_segmentation_metrics(preds, labels, num_classes, ignore_index=0):
+def compute_segmentation_metrics(preds, labels, num_classes, ignore_index=255):
     preds = preds.detach().cpu().numpy()
     labels = labels.detach().cpu().numpy()
 
