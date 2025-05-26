@@ -82,6 +82,18 @@ def parse_args(config):
         action="store_true",
         help="Resume training from the latest checkpoint"
     )
+    # TODO: Add seed in every random operation
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for reproducibility",
+    )
+    parser.add_argument(
+        "--freeze_backbone",
+        action="store_true",
+        help="Freeze the backbone during training",
+    )
     return parser.parse_args()
 
 

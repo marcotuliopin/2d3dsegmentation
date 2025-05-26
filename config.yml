@@ -24,7 +24,6 @@ data:
 model:
   common:
     dropout: 0.3
-    freeze_backbone: true
     pretrained: true
   deeplabv3_resnet101:
     backbone: resnet101

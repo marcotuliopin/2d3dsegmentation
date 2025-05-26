@@ -38,6 +38,13 @@ def parse_args(config):
         choices=[key for key in config["data"].keys()],
         help="Dataset to be used",
     )
+    # TODO: Add seed in every random operation
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for reproducibility",
+    )
     return parser.parse_args()
 
 
