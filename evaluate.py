@@ -104,9 +104,6 @@ def main(args, config):
     cm_path = os.path.join(plots_dir, "confusion_matrix.png")
     plot_confusion_matrix(results["confusion_matrix"], save_path=cm_path)
 
-    vis_path = os.path.join(plots_dir, "predictions.png")
-    visualize_predictions(model, test_loader, device, num_samples=4, save_path=vis_path)
-
     with open(os.path.join(results_dir, "test_results.txt"), "w") as f:
         f.write(f"Mean IoU: {results['mean_iou']:.4f}\n")
         f.write(f"Weighted IoU: {results['weighted_iou']:.4f}\n")
@@ -117,6 +114,8 @@ def main(args, config):
         for i in range(exp_config["num_classes"]):
             f.write(f"  Classe {i}: {results['class_iou'][i]:.4f}\n")
 
+    vis_path = os.path.join(plots_dir, "predictions.png")
+    visualize_predictions(model, test_loader, device, num_samples=4, save_path=vis_path)
 
 def test_model(model, data_loader, device, num_classes, unlabeled_id):
     all_preds = []
