@@ -65,7 +65,7 @@ class NYUDepthV2Dataset(Dataset):
         depth = resized["depth"]
 
         if self.mode == "train":
-            augmented = shared_augmentation_transform(self.shape[0], self.shape[1])(image=rgb, depth=depth, mask=mask)
+            augmented = shared_augmentation_transform(image=rgb, depth=depth, mask=mask)
             transformed = train_rgb_transform(image=augmented["image"], mask=augmented["mask"])
         else:
             transformed = val_rgb_transform(image=rgb, mask=mask)
