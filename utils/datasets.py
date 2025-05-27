@@ -35,7 +35,7 @@ class SunRGBDDataset(Dataset):
 
 class NYUDepthV2Dataset(Dataset):
     def __init__(self, file_path, shape, mode="train", ignore_index=255, use_depth=False):
-        self.data = load_dataset("parquet", data_files=file_path)
+        self.data = load_dataset("parquet", data_files=file_path)["train"]
         self.shape = shape
         self.mode = mode
         self.ignore_index = ignore_index
