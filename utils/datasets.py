@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import Dataset
 from datasets import load_dataset
 
-from utils.transforms import depth_transform, train_transform, validation_transform
+from utils.transforms import resize_transform, train_rgb_transform, val_rgb_transform, depth_transform, shared_augmentation_transform
 
 
 class SunRGBDDataset(Dataset):
@@ -47,8 +47,9 @@ class NYUDepthV2Dataset(Dataset):
 
     def __getitem__(self, idx):
         sample = self.data[idx]
-        image = np.array(sample["image"].convert("RGB"))
+        rgb = np.array(sample["image"].convert("RGB"))
         mask = np.array(sample["label"].convert("L"))
+        depth = np.array(sample["depth"].convert("L"))[..., np.newaxis]  # (H, W) → (H, W, 1)
 
         # Mask preprocessing:
         # 1. Mapping values:
@@ -57,28 +58,27 @@ class NYUDepthV2Dataset(Dataset):
         mask[mask == 0] = self.ignore_index  # Unlabeled
         valid_classes_mask = (mask >= 1) & (mask != self.ignore_index)
         mask[valid_classes_mask] -= 1  # Valid classes: 1-40 → 0-39
+    
+        resized = resize_transform(self.shape[0], self.shape[1])(image=rgb, depth=depth, mask=mask)
+        rgb = resized["image"]
+        mask = resized["mask"]
+        depth = resized["depth"]
 
-        transformed_rgb, transformed_mask = self.transform(image=np.array(image), mask=np.array(mask))
+        if self.mode == "train":
+            augmented = shared_augmentation_transform(self.shape[0], self.shape[1])(image=rgb, depth=depth, mask=mask)
+            transformed = train_rgb_transform(image=augmented["image"], mask=augmented["mask"])
+        else:
+            transformed = val_rgb_transform(image=rgb, mask=mask)
+
+        rgb = transformed["image"]
+        mask = transformed["mask"]
+        depth = depth_transform(image=augmented["depth"])["image"]
 
         if not self.use_depth:
-            return transformed_rgb, transformed_mask
+            return rgb, mask.long()
 
-        # Process depth separately without applying the same augmentations
-        depth = np.array(sample["depth"].convert("L"))
-        depth = depth[..., np.newaxis]  # (H, W) → (H, W, 1)
-
-        transformed_depth = depth_transform(self.shape[0], self.shape[1])(image=depth)["image"]
-        combined_image = torch.cat((transformed_rgb, transformed_depth), dim=0)  # (C, H, W) for RGB + Depth
-
-        return combined_image, transformed_mask
-    
-    def transform(self, image, mask):
-        if self.mode == "train":
-            transformed = train_transform(self.shape[0], self.shape[1])(image=image, mask=mask)
-        else:
-            transformed = validation_transform(self.shape[0], self.shape[1])(image=image, mask=mask)
-        
-        return transformed["image"], transformed["mask"].long()
+        image = torch.cat((rgb, depth), dim=0)
+        return image, mask.long()
 
 
 def calculate_class_weights(dataloader, num_classes, ignore_index):
