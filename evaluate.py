@@ -75,14 +75,13 @@ def main(args, config):
     # ------ Data  Loading ------
     data_config = config["data"][args.data]
 
-    test_dataset = NYUDepthV2Dataset(
-        data_config["paths"]["test_file"], 
-        mode="test",
-        shape=config["data"]["shape"],
-        use_depth=exp_config["use_depth"]
-    )
     test_loader = DataLoader(
-        test_dataset,
+        NYUDepthV2Dataset(
+            file_path=data_config["paths"]["test_file"], 
+            mode="test",
+            shape=config["data"]["shape"],
+            use_depth=exp_config["use_depth"]
+        ),
         batch_size=args.batch_size,
         drop_last=True,
         shuffle=False,

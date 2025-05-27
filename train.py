@@ -120,7 +120,7 @@ def main(args, config):
 
     train_loader = DataLoader(
         NYUDepthV2Dataset(
-            path_file=data_config["paths"]["train_file"],
+            file_path=data_config["paths"]["train_file"],
             use_depth=args.use_depth,
             mode="train",
             shape=config["data"]["shape"],
@@ -132,7 +132,7 @@ def main(args, config):
     )
     val_loader = DataLoader(
         NYUDepthV2Dataset(
-            path_file=data_config["paths"]["val_file"],
+            file_path=data_config["paths"]["val_file"],
             use_depth=args.use_depth,
             mode="val",
             shape=config["data"]["shape"],
