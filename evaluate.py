@@ -1,4 +1,5 @@
 import os
+import random
 from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score
 import torch
 import pickle
@@ -50,6 +51,7 @@ def parse_args(config):
 def main(args, config):
     # Configure CUDA
     device = configure_device()
+    set_seed(args.seed)
 
     # Make sure the experiment exists
     exp_dir = os.path.join(config["output"]["directories"]["checkpoints"], args.experiment_name)
@@ -206,6 +208,15 @@ def get_latest_checkpoint(checkpoint_dir):
     if not checkpoints:
         raise FileNotFoundError(f"No checkpoint found at {checkpoint_dir}")
     return os.path.join(checkpoint_dir, checkpoints[-1])
+
+
+def set_seed(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 def configure_device():

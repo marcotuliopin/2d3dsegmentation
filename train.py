@@ -2,6 +2,8 @@ import datetime
 import os
 import pickle
 import argparse
+import random
+import numpy as np
 import yaml
 import torch
 import torch.nn as nn
@@ -104,6 +106,7 @@ def parse_args(config):
 def main(args, config):
     # Configure CUDA
     device = configure_device()
+    set_seed(args.seed)
 
     # Make sure the output directories exist
     exp_dir = os.path.join(
@@ -221,6 +224,15 @@ def main(args, config):
     plot_loss_curves(train_losses, val_losses, save_path=plot_path)
 
     print(f"Training complete. Results saved in {exp_dir}")
+
+
+def set_seed(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 def configure_device():
