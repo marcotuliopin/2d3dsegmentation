@@ -211,6 +211,7 @@ def get_latest_checkpoint(checkpoint_dir):
 
 
 def set_seed(seed=42):
+    os.environ['PYTHONHASHSEED'] = str(seed)
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
