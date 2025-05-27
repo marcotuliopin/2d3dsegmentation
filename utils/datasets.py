@@ -40,7 +40,6 @@ class NYUDepthV2Dataset(Dataset):
         self.mode = mode
         self.ignore_index = ignore_index
         self.use_depth = use_depth
-        self.num_classes = 40
 
     def __len__(self):
         return len(self.data)
