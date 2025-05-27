@@ -75,12 +75,11 @@ def main(args, config):
 
     # ------ Data  Loading ------
     data_config = config["data"][args.data]
-    test_transform = get_validation_transforms(height=data_config["image_size"][0], width=data_config["image_size"][1])
 
     test_dataset = NYUDepthV2Dataset(
         data_config["paths"]["test_file"], 
-        transform=test_transform, 
-        split_name="test",
+        mode="test",
+        shape=config["data"]["shape"],
         use_depth=exp_config["use_depth"]
     )
     test_loader = DataLoader(

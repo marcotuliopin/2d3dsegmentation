@@ -119,14 +119,12 @@ def main(args, config):
     # ------ Data  Loading ------
     data_config = config["data"][args.data].copy()
 
-    train_transform = get_training_transforms(height=data_config["image_size"][0], width=data_config["image_size"][1])
-    val_transform = get_validation_transforms(height=data_config["image_size"][0], width=data_config["image_size"][1])
-
     train_loader = DataLoader(
         NYUDepthV2Dataset(
             path_file=data_config["paths"]["train_file"],
-            transform=train_transform,
             use_depth=args.use_depth,
+            mode="train",
+            shape=config["data"]["shape"],
         ),
         batch_size=args.batch_size,
         drop_last=True,
@@ -136,8 +134,9 @@ def main(args, config):
     val_loader = DataLoader(
         NYUDepthV2Dataset(
             path_file=data_config["paths"]["val_file"],
-            transform=val_transform,
             use_depth=args.use_depth,
+            mode="val",
+            shape=config["data"]["shape"],
         ),
         batch_size=args.batch_size,
         drop_last=True,
@@ -351,7 +350,7 @@ def save_experiment_config(config, args):
         "scheduler_config": config["train"]["lr_scheduler"][args.scheduler],
         "freeze_backbone": args.freeze_backbone,
         "use_depth": args.use_depth,
-        "image_size": config["data"][args.data]["image_size"],
+        "shape": config["data"]["shape"],
         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
     }
 
