@@ -10,7 +10,6 @@ import yaml
 
 from utils.datasets import NYUDepthV2Dataset
 from utils.model import get_model
-from utils.transforms import get_validation_transforms
 from utils.training import CheckpointSaver
 from utils.visualization import plot_confusion_matrix, visualize_predictions
 

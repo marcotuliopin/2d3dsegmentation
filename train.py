@@ -9,7 +9,6 @@ from torch.utils.data import DataLoader
 
 from utils.datasets import NYUDepthV2Dataset, calculate_class_weights
 from utils.model import get_model
-from utils.transforms import get_training_transforms, get_validation_transforms
 from utils.training import (
     CheckpointSaver,
     EarlyStopping,
