@@ -17,8 +17,8 @@ from torchvision import transforms
 
 data_root = "data/nyuv2"
 
-nyuv2_depth_mean = 156.45574834168633
-nyuv2_depth_std = 86.42665851132719
+nyuv2_depth_mean = 0.889833
+nyuv2_depth_std = 1.687499
 
 # The mean and std values for ImageNet, used for normalization
 # with pretrained models.
@@ -245,6 +245,8 @@ class NYUv2(Dataset):
             if isinstance(img, torch.Tensor):
                 # depth png is uint16
                 img = img.float() / 1e4
+                img = (img - nyuv2_depth_mean) / nyuv2_depth_std  # Normalize
+
             imgs.append(img)
 
         return imgs
