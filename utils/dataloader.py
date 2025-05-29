@@ -127,12 +127,8 @@ def depth_transform(height=height0, width=width0):
     """
     return transforms.Compose(
         [
-            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.BILINEAR),
+            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
             transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[nyuv2_depth_mean / 255.0],  # Convertendo para [0,1] para ToTensor
-                std=[nyuv2_depth_std / 255.0],
-            ),
         ]
     )
 
