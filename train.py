@@ -7,16 +7,19 @@ import numpy as np
 import yaml
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
 
-from utils.datasets import NYUDepthV2Dataset, calculate_class_weights
-from utils.model import get_model
+from models.deeplabv3_resnet101 import get_deeplabv3_resnet101
+from models.deeplabv3_resnet50 import get_deeplabv3_resnet50
+from models.dual_encoder_unet import get_dual_encoder_unet
+from models.fcn_resnet101 import get_fcn_resnet101
+from models.fcn_resnet50 import get_fcn_resnet50
+from models.unet import get_unet
+from utils.dataloader import nyuv2_dataloader
 from utils.training import (
     CheckpointSaver,
     EarlyStopping,
     Trainer,
 )
-from utils.visualization import plot_loss_curves
 
 
 def parse_args(config):
@@ -24,7 +27,7 @@ def parse_args(config):
     parser.add_argument(
         "--model",
         type=str,
-        choices=[key for key in config["model"].keys() if key != "common"],
+        choices=[key for key in config["model"].keys()],
         help="Model to be used",
     )
     parser.add_argument(
@@ -38,13 +41,6 @@ def parse_args(config):
         type=int,
         default=config["train"]["epochs"],
         help="Number of epochs",
-    )
-    parser.add_argument(
-        "--data",
-        type=str,
-        default="nyu_depth_v2",
-        choices=[key for key in config["data"].keys()],
-        help="Dataset to be used",
     )
     parser.add_argument(
         "--optimizer",
@@ -81,7 +77,7 @@ def parse_args(config):
     parser.add_argument(
         "--resume",
         action="store_true",
-        help="Resume training from the latest checkpoint"
+        help="Resume training from the latest checkpoint",
     )
     # TODO: Add seed in every random operation
     parser.add_argument(
@@ -89,16 +85,6 @@ def parse_args(config):
         type=int,
         default=42,
         help="Random seed for reproducibility",
-    )
-    parser.add_argument(
-        "--freeze-backbone",
-        action="store_true",
-        help="Freeze the backbone during training",
-    )
-    parser.add_argument(
-        "--use-depth",
-        action="store_true",
-        help="Use depth as a fourth channel in the input",
     )
     return parser.parse_args()
 
@@ -119,49 +105,30 @@ def main(args, config):
     )
 
     # ------ Data  Loading ------
-    data_config = config["data"][args.data].copy()
-
-    train_loader = DataLoader(
-        NYUDepthV2Dataset(
-            file_path=data_config["paths"]["train_file"],
-            use_depth=args.use_depth,
-            mode="train",
-            shape=config["data"]["shape"],
-        ),
+    train_loader, val_loader = nyuv2_dataloader(
+        train=True,
+        split_val=True,
+        rgb_only=config["model"][args.model]["rgb_only"],
         batch_size=args.batch_size,
-        drop_last=True,
-        shuffle=True,
         num_workers=config["train"]["num_workers"],
-    )
-    val_loader = DataLoader(
-        NYUDepthV2Dataset(
-            file_path=data_config["paths"]["val_file"],
-            use_depth=args.use_depth,
-            mode="val",
-            shape=config["data"]["shape"],
-        ),
-        batch_size=args.batch_size,
-        drop_last=True,
-        shuffle=False,
-        num_workers=config["train"]["num_workers"],
+        image_size=config["data"]["shape"],
     )
 
     # ------ Model Configuration ------
-    in_channels = 4 if args.use_depth else 3
-    model_config = config["model"]["common"].copy()
-    model_config.update(config["model"][args.model])
     model = get_model(
-        args.model,
-        num_classes=data_config["num_classes"],
-        in_channels=in_channels,
-        freeze_backbone=args.freeze_backbone,
-        **model_config,
+        num_classes=config["data"]["num_classes"],
+        name=config["model"][args.model]["name"],
+        **config["model"][args.model]["config"],
     )
     model = model.to(device)
 
     # ------ Training Configurations ------
-    weight = calculate_class_weights(train_loader, data_config["num_classes"], data_config["unlabeled_id"])
-    criterion = get_loss_function(args.loss, config["train"]["loss"][args.loss], data_config["unlabeled_id"], weight.to(device))
+    # TODO: Fix weight calculation
+    criterion = get_loss_function(
+        args.loss,
+        config["train"]["loss"][args.loss],
+        config["data"]["unlabeled_id"],
+    )
     optimizer = get_optimizer(
         args.optimizer,
         model.parameters(),
@@ -185,49 +152,30 @@ def main(args, config):
 
     start_epoch = 0
     if args.resume:
-        start_epoch = load_checkpoint(checkpoint_saver, exp_dir)
+        checkpoint_path = os.path.join(exp_dir, "checkpoint.pth")
+        start_epoch = checkpoint_saver.load(checkpoint_path)
 
     trainer = Trainer(model, optimizer, criterion, device)
 
-    train_losses = []
-    val_losses = []
-
     # ------ Training ------
     for epoch in range(start_epoch, args.epochs):
-        if epoch == 5:
-            model.set_trainable(trainable=True)
-
         train_loss = trainer.train_epoch(train_loader, epoch)
         val_loss = trainer.validate(val_loader, epoch)
 
-        train_losses.append(train_loss)
-        val_losses.append(val_loss)
+        scheduler.step(val_loss)
 
-        if args.scheduler == "plateau":
-            scheduler.step(val_loss)
-        else:
-            scheduler.step()
+        if early_stopping(val_loss, epoch):
+            break
 
         print(f"End of epoch {epoch} of experiment {args.experiment_name}:")
         print(f"  train loss: {train_loss:.4f}")
         print(f"  val loss: {val_loss:.4f}")
 
-        if early_stopping(val_loss, epoch):
-            break
-
-    # ------ Saving Info ------
-    plot_path = os.path.join(
-        config["output"]["directories"]["plots"],
-        args.experiment_name,
-        "loss_curves.png",
-    )
-    plot_loss_curves(train_losses, val_losses, save_path=plot_path)
-
     print(f"Training complete. Results saved in {exp_dir}")
 
 
 def set_seed(seed=42):
-    os.environ['PYTHONHASHSEED'] = str(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -251,34 +199,50 @@ def configure_device():
     return device
 
 
-def get_loss_function(loss_name, loss_config, ignore_index, weight):
-    if loss_name == "cross_entropy":
-        return nn.CrossEntropyLoss(
-            ignore_index=ignore_index,
-        )
-    elif loss_name == "weighted_cross_entropy":
-        return nn.CrossEntropyLoss(
-            weight=weight,
-            ignore_index=ignore_index,
-        )
-    elif loss_name == "focal_loss":
+def get_model(name, **kwargs):
+    models = {
+        "fcn_resnet50": get_fcn_resnet50,
+        "deeplabv3_resnet50": get_deeplabv3_resnet50,
+        "fcn_resnet101": get_fcn_resnet101,
+        "deeplabv3_resnet101": get_deeplabv3_resnet101,
+        "unet": get_unet,
+        "dual_encoder_unet": get_dual_encoder_unet,
+    }
+    
+    if name not in models:
+        raise ValueError(f"Model {name} não suportado. Opções: {list(models.keys())}")
+    
+    return models[name](**kwargs)
+
+
+def get_loss_function(name: str, loss_config: dict, ignore_index: int):
+    if name == "cross_entropy":
+        return nn.CrossEntropyLoss()
+    # elif loss_name == "weighted_cross_entropy":
+    #     return nn.CrossEntropyLoss(
+    #         weight=weight,
+    #         ignore_index=ignore_index,
+    #     )
+    elif name == "focal_loss":
         from utils.losses import FocalLoss
+
         return FocalLoss(
             alpha=loss_config["alpha"],
             gamma=loss_config["gamma"],
             ignore_index=ignore_index,
         )
-    elif loss_name == "dice_loss":
+    elif name == "dice_loss":
         from utils.losses import DiceLoss
+
         return DiceLoss(
             smooth=loss_config["smooth"],
             ignore_index=ignore_index,
         )
     else:
-        raise ValueError(f"Unknown loss function: {loss_name}")
+        raise ValueError(f"Unknown loss function: {name}")
 
 
-def get_optimizer(optimizer_name, model_params, optimizer_config, lr):
+def get_optimizer(optimizer_name: str, model_params: dict, optimizer_config: dict, lr: float):
     if optimizer_name == "adam":
         return torch.optim.AdamW(
             model_params,
@@ -322,18 +286,6 @@ def get_scheduler(scheduler_name, optimizer, scheduler_config, batch_size, num_e
         raise ValueError(f"Unknown scheduler: {scheduler_name}")
 
 
-def load_checkpoint(checkpoint_saver, exp_dir):
-    start_epoch = 0
-    checkpoint_path = os.path.join(exp_dir, "checkpoint.pth")
-    if os.path.exists(checkpoint_path):
-        start_epoch = checkpoint_saver.load(checkpoint_path)
-        print(f"Resuming training from epoch {start_epoch}")
-    else:
-        print(f"No checkpoint found at {checkpoint_path}, starting training from scratch.")
-
-    return start_epoch
-
-
 def read_config():
     with open("config.yml", "r") as file:
         config = yaml.safe_load(file)
@@ -341,7 +293,9 @@ def read_config():
 
 
 def save_experiment_config(config, args):
-    exp_dir = os.path.join(config["output"]["directories"]["checkpoints"], args.experiment_name)
+    exp_dir = os.path.join(
+        config["output"]["directories"]["checkpoints"], args.experiment_name
+    )
     os.makedirs(exp_dir, exist_ok=True)
     os.makedirs(
         os.path.join(config["output"]["directories"]["plots"], args.experiment_name),
@@ -352,16 +306,13 @@ def save_experiment_config(config, args):
         "batch_size": args.batch_size,
         "epochs": args.epochs,
         "lr": args.lr,
-        "num_classes": config["data"][args.data]["num_classes"],
-        "model": args.model,
-        "model_config": config["model"][args.model],
+        "num_classes": config["data"]["num_classes"],
+        "model": config["model"][args.model],
         "loss": args.loss,
         "optimizer": args.optimizer,
         "optimizer_config": config["train"]["optimizer"][args.optimizer],
         "scheduler": args.scheduler,
         "scheduler_config": config["train"]["lr_scheduler"][args.scheduler],
-        "freeze_backbone": args.freeze_backbone,
-        "use_depth": args.use_depth,
         "shape": config["data"]["shape"],
         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
     }
@@ -378,11 +329,11 @@ def save_experiment_config(config, args):
             return item
         else:
             return str(item)
-    
+
     experiment_config = sanitize_config(experiment_config)
-    
+
     config_path = os.path.join(exp_dir, f"{args.experiment_name}_config.yml")
-    with open(config_path, 'w', encoding='utf-8') as f:
+    with open(config_path, "w", encoding="utf-8") as f:
         yaml.dump(experiment_config, f, default_flow_style=False, encoding=None)
 
 

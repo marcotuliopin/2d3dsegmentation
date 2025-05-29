@@ -5,12 +5,16 @@ import torch
 import pickle
 import argparse
 import numpy as np
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 import yaml
 
-from utils.datasets import NYUDepthV2Dataset
-from utils.model import get_model
+from models.deeplabv3_resnet101 import get_deeplabv3_resnet101
+from models.unet import get_unet
+from models.fcn_resnet101 import get_fcn_resnet101
+from models.deeplabv3_resnet50 import get_deeplabv3_resnet50
+from models.fcn_resnet50 import get_fcn_resnet50
+from models.dual_encoder_unet import get_dual_encoder_unet
+from utils.dataloader import nyuv2_dataloader
 from utils.training import CheckpointSaver
 from utils.visualization import plot_confusion_matrix, visualize_predictions
 
@@ -59,14 +63,10 @@ def main(args, config):
         exp_config = pickle.load(f)
 
     # We need to load the model with the same configuration used for training
-    in_channels = 4 if exp_config["use_depth"] else 3
-    model = get_model(exp_config["model"], 
+    model = get_model( 
+        name=exp_config["model"]["name"],
         num_classes=exp_config["num_classes"], 
-        in_channels=in_channels, **{
-            k: v
-            for k, v in exp_config.get("model_config", {}).items()
-            if k != "num_classes"
-        },
+        **exp_config["model"]["config"]
     )
     model = model.to(device)
 
@@ -75,23 +75,16 @@ def main(args, config):
     checkpoint_saver.load(checkpoint_path)
 
     # ------ Data  Loading ------
-    data_config = config["data"][args.data]
-
-    test_loader = DataLoader(
-        NYUDepthV2Dataset(
-            file_path=data_config["paths"]["test_file"], 
-            mode="test",
-            shape=config["data"]["shape"],
-            use_depth=exp_config["use_depth"]
-        ),
+    test_loader = nyuv2_dataloader(
+        train=False,
+        rgb_only=exp_config["model"]["rgb_only"],
         batch_size=args.batch_size,
-        drop_last=True,
-        shuffle=False,
-        num_workers=config["train"]["num_workers"]
+        num_workers=config["train"]["num_workers"],
+        image_size=config["data"]["shape"],
     )
 
     # ------ Testing ------
-    results = test_model(model, test_loader, device, exp_config["num_classes"], data_config["unlabeled_id"])
+    results = test_model(model, test_loader, device, exp_config["num_classes"], config["data"]["unlabeled_id"])
     results_dir = os.path.join(config["output"]["directories"]["results"], args.experiment_name)
 
     # Make sure the output directories exist
@@ -115,6 +108,7 @@ def main(args, config):
 
     vis_path = os.path.join(plots_dir, "predictions.png")
     visualize_predictions(model, test_loader, device, num_samples=4, save_path=vis_path)
+
 
 def test_model(model, data_loader, device, num_classes, unlabeled_id):
     all_preds = []
@@ -201,6 +195,22 @@ def compute_segmentation_metrics(preds, labels, num_classes, ignore_index=255):
         "f1_per_class": f1_per_class,
         "mean_f1": mean_f1,
     }
+
+
+def get_model(name, **kwargs):
+    models = {
+        "fcn_resnet50": get_fcn_resnet50,
+        "deeplabv3_resnet50": get_deeplabv3_resnet50,
+        "fcn_resnet101": get_fcn_resnet101,
+        "deeplabv3_resnet101": get_deeplabv3_resnet101,
+        "unet": get_unet,
+        "dual_encoder_unet": get_dual_encoder_unet,
+    }
+    
+    if name not in models:
+        raise ValueError(f"Model {name} não suportado. Opções: {list(models.keys())}")
+    
+    return models[name](**kwargs)
 
 
 def get_latest_checkpoint(checkpoint_dir):
