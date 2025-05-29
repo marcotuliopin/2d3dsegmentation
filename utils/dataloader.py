@@ -64,7 +64,8 @@ def nyuv2_dataloader(
     if split_val:
         train_size = int(0.7 * len(dataset))
         val_size = len(dataset) - train_size
-        train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
+        generator = torch.Generator().manual_seed(42)  # For reproducibility
+        train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size], generator=generator)
         val_dataset.dataset = copy(dataset)
 
         # Remove augmentation from validation set

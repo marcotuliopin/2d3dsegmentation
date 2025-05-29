@@ -14,6 +14,7 @@ from models.dual_encoder_unet import get_dual_encoder_unet
 from models.fcn_resnet101 import get_fcn_resnet101
 from models.fcn_resnet50 import get_fcn_resnet50
 from models.unet import get_unet
+from models.unet_depth_concatenate import get_unet_depth_concatenate
 from utils.dataloader import nyuv2_dataloader
 from utils.training import (
     CheckpointSaver,
@@ -206,6 +207,7 @@ def get_model(name, **kwargs):
         "fcn_resnet101": get_fcn_resnet101,
         "deeplabv3_resnet101": get_deeplabv3_resnet101,
         "unet": get_unet,
+        "unet_depth_concatenate": get_unet_depth_concatenate,
         "dual_encoder_unet": get_dual_encoder_unet,
     }
     

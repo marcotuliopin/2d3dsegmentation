@@ -62,7 +62,10 @@ class Trainer:
         self.model.train()
         running_loss = 0.0
         
-        for images, masks in tqdm(data_loader, desc=f"Training Epoch {epoch}"):
+        for images, masks, depth in tqdm(data_loader, desc=f"Training Epoch {epoch}"):
+            # Add depth as fourth channel to image
+            if depth is not None:
+                images = torch.cat((images, depth), dim=1)
             images = images.to(self.device)
             masks = masks.to(self.device)
 
@@ -84,7 +87,9 @@ class Trainer:
         running_loss = 0.0
         
         with torch.no_grad():
-            for images, masks in tqdm(data_loader, desc=f"Validation Epoch {epoch}"):
+            for images, masks, depth in tqdm(data_loader, desc=f"Validation Epoch {epoch}"):
+                if depth is not None:
+                    images = torch.cat((images, depth), dim=1)
                 images = images.to(self.device)
                 masks = masks.to(self.device)
 

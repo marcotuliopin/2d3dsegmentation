@@ -48,13 +48,15 @@ model:
   dual_encoder_unet:
     name: dual_encoder_unet
     rgb_only: false
-    encoder: resnet50
-    dropout: 0.3
+    config:
+      encoder: resnet50
+      dropout: 0.3
   unet_depth_concatenate:
     name: unet_depth_concatenate
     rgb_only: false
-    encoder: resnet50
-    dropout: 0.3
+    config:
+      encoder: resnet50
+      dropout: 0.3
 
 output:
   directories:

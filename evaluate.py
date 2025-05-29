@@ -14,6 +14,7 @@ from models.fcn_resnet101 import get_fcn_resnet101
 from models.deeplabv3_resnet50 import get_deeplabv3_resnet50
 from models.fcn_resnet50 import get_fcn_resnet50
 from models.dual_encoder_unet import get_dual_encoder_unet
+from models.unet_depth_concatenate import get_unet_depth_concatenate
 from utils.dataloader import nyuv2_dataloader
 from utils.training import CheckpointSaver
 from utils.visualization import plot_confusion_matrix, visualize_predictions
@@ -116,7 +117,9 @@ def test_model(model, data_loader, device, num_classes, unlabeled_id):
 
     model.eval()
     with torch.no_grad():
-        for images, masks in tqdm(data_loader):
+        for images, masks, depth in tqdm(data_loader):
+            if depth is not None:
+                images = torch.cat((images, depth), dim=1)
             images = images.to(device)
             masks = masks.to(device)
 
@@ -205,6 +208,7 @@ def get_model(name, **kwargs):
         "deeplabv3_resnet101": get_deeplabv3_resnet101,
         "unet": get_unet,
         "dual_encoder_unet": get_dual_encoder_unet,
+        "unet_depth_concatenate": get_unet_depth_concatenate,
     }
     
     if name not in models:

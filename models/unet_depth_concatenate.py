@@ -2,7 +2,7 @@ import torch.nn as nn
 import segmentation_models_pytorch as smp
 
 
-class UNet(nn.Module):
+class UNetD1(nn.Module):
     def __init__(
         self,
         num_classes,
@@ -17,7 +17,7 @@ class UNet(nn.Module):
         self.unet = smp.Unet(
             encoder_name=encoder,
             encoder_weights=weights,
-            in_channels=3, # RGB only
+            in_channels=4, # RGB-D information
             classes=num_classes,
             activation=None,
         )
@@ -34,9 +34,9 @@ class UNet(nn.Module):
             param.requires_grad = trainable
 
 
-def get_unet(num_classes, dropout=0.3, pretrained=True, encoder="resnet50"):
-    print(f"Using model: UNet with {encoder} encoder")
-    return UNet(
+def get_unet_depth_concatenate(num_classes, dropout=0.3, pretrained=True, encoder="resnet50"):
+    print(f"Using model: UNet with {encoder} encoder. Depth concatenation enabled.")
+    return UNetD1(
         num_classes=num_classes,
         dropout=dropout,
         pretrained=pretrained,
