@@ -2,22 +2,65 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# Frequency weights for different classes in the NYUv2 dataset
+nyuv2_inv_freq = [0.11756749, 0.58930845, 3.86320268, 1.42978694, 0.61211152,
+        0.21107389, 0.14174245, 0.16072167, 1.03913962, 0.87946776,
+        0.68799929, 3.74469765, 0.08783193, 0.43534866]
+
 
 class FocalLoss(nn.Module):
-    def __init__(self, alpha=0.25, gamma=2.0, ignore_index=None):
+    def __init__(self, gamma=2.0, reduction=None, ignore_index=255):
         super().__init__()
-        self.alpha = alpha  # Balances positive/negative
-        self.gamma = gamma  # Focuses on hard examples
+        self.alpha = torch.tensor(nyuv2_inv_freq)
+        self.gamma = gamma
+        self.reduction = reduction
         self.ignore_index = ignore_index
-
+    
     def forward(self, inputs, targets):
-        if self.ignore_index is not None:
-            ce_loss = F.cross_entropy(inputs, targets, reduction='none', ignore_index=self.ignore_index)
+        """
+        Args:
+            inputs: Tensor (N, C, H, W) - logits
+            targets: Tensor (N, H, W) - ground truth labels
+        """
+        log_pt = F.log_softmax(inputs, dim=1)
+        
+        if self.ignore_index >= 0:
+            valid_mask = (targets != self.ignore_index)
         else:
-            ce_loss = F.cross_entropy(inputs, targets, reduction='none')
-        pt = torch.exp(-ce_loss)  # Softmax probability of true class
-        focal_loss = (self.alpha * (1-pt)**self.gamma * ce_loss)
-        return focal_loss.mean()
+            valid_mask = torch.ones_like(targets, dtype=torch.bool)
+        
+        # Flatten tensors to simplify indexing
+        log_pt = log_pt.permute(0, 2, 3, 1).contiguous().view(-1, inputs.size(1))
+        targets_flat = targets.view(-1)
+        valid_mask_flat = valid_mask.view(-1)
+        
+        # Filter out ignored indices
+        log_pt = log_pt[valid_mask_flat]
+        targets_flat = targets_flat[valid_mask_flat]
+        
+        if len(targets_flat) == 0:
+            return torch.tensor(0.0, device=inputs.device, requires_grad=True)
+        
+        log_pt = log_pt.gather(1, targets_flat.unsqueeze(1)).squeeze(1)
+        pt = log_pt.exp()
+        
+        focal_weight = (1 - pt) ** self.gamma
+        
+        # Ajust weights based on alpha if provided
+        if self.alpha.device != inputs.device:
+            self.alpha = self.alpha.to(inputs.device)
+            
+        alpha_t = self.alpha[targets_flat]
+        focal_weight = alpha_t * focal_weight
+        
+        focal_loss = -focal_weight * log_pt
+        
+        # Reduction transforms a batch of losses into a single scalar
+        if self.reduction == 'mean':
+            return focal_loss.mean()
+        elif self.reduction == 'sum':
+            return focal_loss.sum()
+        return focal_loss
 
 
 class DiceLoss(nn.Module):

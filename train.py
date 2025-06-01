@@ -16,6 +16,7 @@ from models.fcn_resnet50 import get_fcn_resnet50
 from models.unet import get_unet
 from models.unet_depth_concatenate import get_unet_depth_concatenate
 from utils.dataloader import nyuv2_dataloader
+from utils.losses import FocalLoss, DiceLoss
 from utils.training import (
     CheckpointSaver,
     EarlyStopping,
@@ -49,18 +50,11 @@ def parse_args(config):
         choices=[key for key in config["train"]["optimizer"]],
         help="Optimizer to be used",
     )
-    parser.add_argument("--lr", type=float, help="Learning rate")
     parser.add_argument(
         "--scheduler",
         type=str,
         choices=[key for key in config["train"]["lr_scheduler"]],
         help="Scheduler to be used",
-    )
-    parser.add_argument(
-        "--patience",
-        type=int,
-        default=config["train"]["early_stopping"]["patience"],
-        help="Patience for early stopping",
     )
     parser.add_argument(
         "--loss",
@@ -96,14 +90,9 @@ def main(args, config):
     set_seed(args.seed)
 
     # Make sure the output directories exist
-    exp_dir = os.path.join(
-        config["output"]["directories"]["checkpoints"], args.experiment_name
-    )
+    exp_dir = os.path.join(config["output"]["directories"]["checkpoints"], args.experiment_name)
     os.makedirs(exp_dir, exist_ok=True)
-    os.makedirs(
-        os.path.join(config["output"]["directories"]["plots"], args.experiment_name),
-        exist_ok=True,
-    )
+    os.makedirs(os.path.join(config["output"]["directories"]["plots"], args.experiment_name), exist_ok=True)
 
     # ------ Data  Loading ------
     train_loader, val_loader = nyuv2_dataloader(
@@ -113,6 +102,7 @@ def main(args, config):
         batch_size=args.batch_size,
         num_workers=config["train"]["num_workers"],
         image_size=config["data"]["shape"],
+        seed=args.seed,
     )
 
     # ------ Model Configuration ------
@@ -125,16 +115,19 @@ def main(args, config):
 
     # ------ Training Configurations ------
     # TODO: Fix weight calculation
+    weights=torch.tensor([0.11756749, 0.58930845, 3.86320268, 1.42978694, 0.61211152,
+        0.21107389, 0.14174245, 0.16072167, 1.03913962, 0.87946776,
+        0.68799929, 3.74469765, 0.08783193, 0.43534866]).to(device)
     criterion = get_loss_function(
         args.loss,
         config["train"]["loss"][args.loss],
         config["data"]["unlabeled_id"],
+        weights
     )
     optimizer = get_optimizer(
         args.optimizer,
         model.parameters(),
         config["train"]["optimizer"][args.optimizer],
-        args.lr,
     )
     scheduler = get_scheduler(
         args.scheduler,
@@ -145,32 +138,40 @@ def main(args, config):
         len(train_loader),
     )
     checkpoint_saver = CheckpointSaver(model, exp_dir, optimizer)
-    early_stopping = EarlyStopping(
-        patience=config["train"]["early_stopping"]["patience"],
-        min_delta=config["train"]["early_stopping"]["delta"],
-        checkpoint_saver=checkpoint_saver,
-    )
+    # early_stopping = EarlyStopping(
+    #     patience=config["train"]["early_stopping"]["patience"],
+    #     min_delta=config["train"]["early_stopping"]["delta"],
+    # )
 
     start_epoch = 0
     if args.resume:
         checkpoint_path = os.path.join(exp_dir, "checkpoint.pth")
         start_epoch = checkpoint_saver.load(checkpoint_path)
 
-    trainer = Trainer(model, optimizer, criterion, device)
+    trainer = Trainer(
+        model,
+        optimizer,
+        criterion,
+        device,
+        scheduler,
+        config["model"][args.model]["rgb_only"],
+    )
 
     # ------ Training ------
+    best_loss = float("inf")
+
     for epoch in range(start_epoch, args.epochs):
-        train_loss = trainer.train_epoch(train_loader, epoch)
-        val_loss = trainer.validate(val_loader, epoch)
+        train_loss = trainer.train_epoch(train_loader)
+        val_loss, val_miou = trainer.validate(val_loader)
 
-        scheduler.step(val_loss)
-
-        if early_stopping(val_loss, epoch):
-            break
+        if val_loss < best_loss:
+            checkpoint_saver.save(epoch, verbose=True)
+            best_loss = val_loss
 
         print(f"End of epoch {epoch} of experiment {args.experiment_name}:")
         print(f"  train loss: {train_loss:.4f}")
         print(f"  val loss: {val_loss:.4f}")
+        print(f"  val miou: {val_miou:.4f}")
 
     print(f"Training complete. Results saved in {exp_dir}")
 
@@ -217,25 +218,21 @@ def get_model(name, **kwargs):
     return models[name](**kwargs)
 
 
-def get_loss_function(name: str, loss_config: dict, ignore_index: int):
+def get_loss_function(name: str, loss_config: dict, ignore_index: int, weights):
     if name == "cross_entropy":
         return nn.CrossEntropyLoss()
-    # elif loss_name == "weighted_cross_entropy":
-    #     return nn.CrossEntropyLoss(
-    #         weight=weight,
-    #         ignore_index=ignore_index,
-    #     )
-    elif name == "focal_loss":
-        from utils.losses import FocalLoss
-
-        return FocalLoss(
-            alpha=loss_config["alpha"],
-            gamma=loss_config["gamma"],
+    elif name == "weighted_cross_entropy":
+        return nn.CrossEntropyLoss(
+            weight=weights,
             ignore_index=ignore_index,
         )
+    elif name == "focal_loss":
+        return FocalLoss(
+            gamma=loss_config["gamma"],
+            ignore_index=ignore_index,
+            reduction=loss_config["reduction"]
+        )
     elif name == "dice_loss":
-        from utils.losses import DiceLoss
-
         return DiceLoss(
             smooth=loss_config["smooth"],
             ignore_index=ignore_index,
@@ -244,19 +241,19 @@ def get_loss_function(name: str, loss_config: dict, ignore_index: int):
         raise ValueError(f"Unknown loss function: {name}")
 
 
-def get_optimizer(optimizer_name: str, model_params: dict, optimizer_config: dict, lr: float):
+def get_optimizer(optimizer_name: str, model_params: dict, optimizer_config: dict):
     if optimizer_name == "adam":
         return torch.optim.AdamW(
             model_params,
             betas=optimizer_config["betas"],
             eps=optimizer_config["eps"],
-            lr=lr,
+            lr=optimizer_config["learning_rate"],
             weight_decay=optimizer_config["weight_decay"],
         )
     elif optimizer_name == "sgd":
         return torch.optim.SGD(
             model_params,
-            lr=lr,
+            lr=optimizer_config["learning_rate"],
             momentum=optimizer_config["momentum"],
             weight_decay=optimizer_config["weight_decay"],
         )
@@ -307,7 +304,6 @@ def save_experiment_config(config, args):
     experiment_config = {
         "batch_size": args.batch_size,
         "epochs": args.epochs,
-        "lr": args.lr,
         "num_classes": config["data"]["num_classes"],
         "model": config["model"][args.model],
         "loss": args.loss,

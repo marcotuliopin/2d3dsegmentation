@@ -36,6 +36,7 @@ def nyuv2_dataloader(
     batch_size: int = 16,
     num_workers: int = 0,
     image_size: tuple = (height0, width0),
+    seed: int = 42,
 ):
     """
     Creates a DataLoader for the NYUv2 dataset.
@@ -47,13 +48,18 @@ def nyuv2_dataloader(
     :param batch_size: number of samples per batch
     :param num_workers: number of subprocesses to use for data loading
     :param image_size: size of the images (height, width)
+    :param seed: random seed for reproducibility
     """
+    generator = torch.Generator().manual_seed(seed)
+
     rgb_xform = train_rgb_transform(*image_size) if train else test_rgb_transform(*image_size)
-    seg_xform = seg_transform(*image_size)
-    depth_xform = depth_transform(*image_size) if not rgb_only else None
+    seg_xform = train_seg_transform(*image_size) if train else test_seg_transform(*image_size)
+    depth_xform = train_depth_transform(*image_size) if train else test_depth_transform(*image_size)
+    depth_xform = None if rgb_only else depth_xform
 
     dataset = NYUv2(
         data_root,
+        seed=seed,
         train=train,
         download=download,
         rgb_transform=rgb_xform,
@@ -62,17 +68,29 @@ def nyuv2_dataloader(
     )
 
     if split_val:
-        train_size = int(0.7 * len(dataset))
+        train_size = int(0.8 * len(dataset))
         val_size = len(dataset) - train_size
-        generator = torch.Generator().manual_seed(42)  # For reproducibility
         train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size], generator=generator)
         val_dataset.dataset = copy(dataset)
 
         # Remove augmentation from validation set
         val_dataset.dataset.rgb_transform = test_rgb_transform(*image_size)
 
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+        train_loader = DataLoader(
+            train_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=num_workers,
+            generator=generator,
+            worker_init_fn=worker_init_fn,
+        )
+        val_loader = DataLoader(
+            val_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            worker_init_fn=worker_init_fn,
+        )
         return train_loader, val_loader
 
     return DataLoader(
@@ -83,6 +101,18 @@ def nyuv2_dataloader(
     )
 
 
+def worker_init_fn(worker_id):
+    """
+    Initializes the worker process with a unique seed based on the worker ID.
+    """
+    seed = (torch.initial_seed() + worker_id) % 2**32
+    np.random.seed(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.manual_seed(seed)
+
+
 def train_rgb_transform(height=height0, width=width0):
     """
     Transformation for train RGB images. Apply augmentation techniques.
@@ -90,9 +120,34 @@ def train_rgb_transform(height=height0, width=width0):
     return transforms.Compose(
         [
             transforms.Resize((height, width), interpolation=transforms.InterpolationMode.BILINEAR),
-            transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
+            transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
+            transforms.RandomApply([transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0))], p=0.1),
             transforms.ToTensor(),
             transforms.Normalize(mean=imagenet_mean, std=imagenet_std),
+        ]
+    )
+
+
+def train_seg_transform(height=height0, width=width0):
+    """
+    Transformation for segmentation masks.
+    """
+    return transforms.Compose(
+        [
+            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
+            transforms.ToTensor(),
+        ]
+    )
+
+
+def train_depth_transform(height=height0, width=width0):
+    """
+    Transformation for depth images.
+    """
+    return transforms.Compose(
+        [
+            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
+            transforms.ToTensor(),
         ]
     )
 
@@ -110,9 +165,9 @@ def test_rgb_transform(height=height0, width=width0):
     )
 
 
-def seg_transform(height=height0, width=width0):
+def test_seg_transform(height=height0, width=width0):
     """
-    Transformation for segmentation masks.
+    Transformation for validation/test segmentation masks.
     """
     return transforms.Compose(
         [
@@ -122,9 +177,9 @@ def seg_transform(height=height0, width=width0):
     )
 
 
-def depth_transform(height=height0, width=width0):
+def test_depth_transform(height=height0, width=width0):
     """
-    Transformation for depth images.
+    Transformation for validation/test depth images.
     """
     return transforms.Compose(
         [
@@ -166,6 +221,7 @@ class NYUv2(Dataset):
         root: str,
         train: bool = True,
         download: bool = False,
+        seed: int = 42,
         rgb_transform=None,
         seg_transform=None,
         sn_transform=None,
@@ -188,6 +244,7 @@ class NYUv2(Dataset):
         """
         super().__init__()
         self.root = root
+        self.seed = seed
 
         self.rgb_transform = rgb_transform
         self.seg_transform = seg_transform
@@ -201,27 +258,26 @@ class NYUv2(Dataset):
             self.download()
 
         if not self._check_exists():
-            raise RuntimeError(
-                "Dataset not complete." + " You can use download=True to download it"
-            )
+            raise RuntimeError("Dataset not complete." + " You can use download=True to download it")
 
         # rgb folder as ground truth
         self._files = sorted(os.listdir(os.path.join(root, f"{self._split}_rgb")))
 
     def __getitem__(self, index: int):
         folder = lambda name: os.path.join(self.root, f"{self._split}_{name}")
-        seed = random.randrange(sys.maxsize)
         imgs = []
 
+        flip = random.random() < 0.5
+
         if self.rgb_transform is not None:
-            random.seed(seed)
             img = Image.open(os.path.join(folder("rgb"), self._files[index]))
+            if flip: img = transforms.functional.hflip(img)
             img = self.rgb_transform(img)
             imgs.append(img)
 
         if self.seg_transform is not None:
-            random.seed(seed)
             img = Image.open(os.path.join(folder("seg13"), self._files[index]))
+            if flip: img = transforms.functional.hflip(img)
             img = self.seg_transform(img)
             if isinstance(img, torch.Tensor):
                 # ToTensor scales to [0, 1] by default
@@ -230,20 +286,19 @@ class NYUv2(Dataset):
             imgs.append(img)
 
         if self.sn_transform is not None:
-            random.seed(seed)
             img = Image.open(os.path.join(folder("sn"), self._files[index]))
+            if flip: img = transforms.functional.hflip(img)
             img = self.sn_transform(img)
             imgs.append(img)
 
         if self.depth_transform is not None:
-            random.seed(seed)
             img = Image.open(os.path.join(folder("depth"), self._files[index]))
+            if flip: img = transforms.functional.hflip(img)
             img = self.depth_transform(img)
             if isinstance(img, torch.Tensor):
                 # depth png is uint16
                 img = img.float() / 1e4
                 img = (img - nyuv2_depth_mean) / nyuv2_depth_std  # Normalize
-
             imgs.append(img)
 
         return imgs
