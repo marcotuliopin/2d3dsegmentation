@@ -35,24 +35,35 @@ model:
     dropout: 0.3
   unet_resnet50:
     name: unet
+    use_hha: false
     rgb_only: true
     config:
       encoder: resnet50
       dropout: 0.3
   unet_resnet101:
     name: unet
+    use_hha: false
     rgb_only: true
     config:
       encoder: resnet101
       dropout: 0.3
   dual_encoder_unet:
     name: dual_encoder_unet
+    use_hha: false
     rgb_only: false
     config:
       encoder: resnet50
       dropout: 0.3
   unet_depth_concatenate:
     name: unet_depth_concatenate
+    use_hha: false
+    rgb_only: false
+    config:
+      encoder: resnet50
+      dropout: 0.3
+  unet_hha_concatenate:
+    name: unet_hha_concatenate
+    use_hha: true
     rgb_only: false
     config:
       encoder: resnet50
@@ -72,9 +83,9 @@ train:
   num_workers: 4
 
   early_stopping:
-    delta: 0.01
+    delta: 0.001
     mode: min
-    patience: 15
+    patience: 10
 
   loss:
     cross_entropy:
@@ -97,7 +108,7 @@ train:
       power: 0.9
     step:
       gamma: 0.8
-      step_size: 100
+      step_size: 30
 
   optimizer:
     adam:
@@ -110,4 +121,5 @@ train:
     sgd:
       learning_rate: 0.002
       momentum: 0.9
-      weight_decay: 0.004
+      weight_decay: 0.0001
+      nesterov: true

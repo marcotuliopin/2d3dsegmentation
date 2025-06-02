@@ -8,11 +8,19 @@ from utils.dataset import NYUv2
 
 data_root = "data/nyuv2"
 
+# The mean and std values for the NYUv2 HHA images, used for normalization.
+nyuv2_hha_mean = (0.538264, 0.443498, 0.439129)
+nyuv2_hha_std = (0.178119, 0.240194, 0.141724)
+
+# The mean and std values for the NYUv2 depth images, used for normalization of the depth map.
 nyuv2_depth_mean = 2.684067
 nyuv2_depth_std = 0.921854
 
-# The mean and std values for ImageNet, used for normalization
-# with pretrained models.
+# RGB camera parameters
+fx, fy = 5.1885790117450188e+02, 5.1946961112127485e+02
+cx, cy = 3.2558244941119034e+02, 2.5373616633400465e+02
+
+# The mean and std values for ImageNet, used for normalization with pretrained models.
 imagenet_mean = (0.485, 0.456, 0.406)
 imagenet_std = (0.229, 0.224, 0.225)
 
@@ -24,11 +32,11 @@ def nyuv2_dataloader(
     split_val: bool = False,
     download: bool = False,
     rgb_only: bool = False,
-    hha: bool = False,
-    batch_size: int = 16,
-    num_workers: int = 0,
-    image_size: tuple = (height0, width0),
+    use_hha: bool = False,
+    batch_size: int = 8,
+    num_workers: int = 4,
     seed: int = 42,
+    image_size: tuple = (height0, width0),
 ):
     """
     Creates a DataLoader for the NYUv2 dataset.
@@ -47,8 +55,14 @@ def nyuv2_dataloader(
     rgb_xform = train_rgb_transform(*image_size) if train else test_rgb_transform(*image_size)
     seg_xform = train_seg_transform(*image_size) if train else test_seg_transform(*image_size)
     depth_xform = train_depth_transform(*image_size) if train else test_depth_transform(*image_size)
-    depth_xform = None if rgb_only else depth_xform
-    hha_xform = None if rgb_only else train_hha_transform(*image_size) if hha else None
+    depth_xform = None
+    hha_xform = None
+
+    if not rgb_only:
+        if use_hha:
+            hha_xform = train_hha_transform(*image_size) if train else test_hha_transform(*image_size) # TODO: Add test transform for HHA
+        else:
+            depth_xform = train_depth_transform(*image_size) if train else test_depth_transform(*image_size)
 
     dataset = NYUv2(
         data_root,
@@ -61,7 +75,7 @@ def nyuv2_dataloader(
         hha_transform=hha_xform,
     )
 
-    if split_val:
+    if split_val and train:
         train_size = int(0.8 * len(dataset))
         val_size = len(dataset) - train_size
         train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size], generator=generator)
@@ -92,6 +106,8 @@ def nyuv2_dataloader(
         batch_size=batch_size,
         shuffle=train,
         num_workers=num_workers,
+        generator=generator,
+        worker_init_fn=worker_init_fn,
     )
 
 
@@ -189,7 +205,26 @@ def train_hha_transform(height=height0, width=width0):
     """
     Transformation for HHA images (depth-based features).
     """
-    pass
+    return transforms.Compose(
+        [
+            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=nyuv2_hha_mean, std=nyuv2_hha_std),
+        ]
+    )
+
+
+def test_hha_transform(height=height0, width=width0):
+    """
+    Transformation for validation/test HHA images.
+    """
+    return transforms.Compose(
+        [
+            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=nyuv2_hha_mean, std=nyuv2_hha_std),
+        ]
+    )
 
 
 class DepthToTensor:
@@ -203,10 +238,9 @@ class DepthToTensor:
 def depth_to_tensor(depth_img):
     """
     Convert depth image to tensor.
-    :param sample: PIL image uint16
+    :param depth_img: PIL image uint16 with depth in mm
     """
     depth_np = np.array(depth_img, dtype=np.uint16)
-    depth_meters = depth_np.astype(np.float32) / 1e4
+    depth_meters = depth_np.astype(np.float32) / 1e4 # Convert to meters
     depth_tensor = torch.from_numpy(depth_meters).unsqueeze(0)  # (1, H, W)
     return depth_tensor
-    

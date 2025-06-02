@@ -6,22 +6,11 @@ import random
 import numpy as np
 import yaml
 import torch
-import torch.nn as nn
 
-from models.deeplabv3_resnet101 import get_deeplabv3_resnet101
-from models.deeplabv3_resnet50 import get_deeplabv3_resnet50
-from models.dual_encoder_unet import get_dual_encoder_unet
-from models.fcn_resnet101 import get_fcn_resnet101
-from models.fcn_resnet50 import get_fcn_resnet50
-from models.unet import get_unet
-from models.unet_depth_concatenate import get_unet_depth_concatenate
 from utils.dataloader import nyuv2_dataloader
-from utils.losses import FocalLoss, DiceLoss
-from utils.training import (
-    CheckpointSaver,
-    EarlyStopping,
-    Trainer,
-)
+from utils.getters import get_loss_function, get_model, get_optimizer, get_scheduler
+from utils.runner import Runner
+from utils.training import CheckpointSaver
 
 
 def parse_args(config):
@@ -98,11 +87,12 @@ def main(args, config):
     train_loader, val_loader = nyuv2_dataloader(
         train=True,
         split_val=True,
-        rgb_only=config["model"][args.model]["rgb_only"],
+        seed=args.seed,
         batch_size=args.batch_size,
+        rgb_only=config["model"][args.model]["rgb_only"],
+        use_hha=config["model"][args.model]["use_hha"],
         num_workers=config["train"]["num_workers"],
         image_size=config["data"]["shape"],
-        seed=args.seed,
     )
 
     # ------ Model Configuration ------
@@ -112,22 +102,21 @@ def main(args, config):
         **config["model"][args.model]["config"],
     )
     model = model.to(device)
+    param_groups = model.get_optimizer_groups()
 
     # ------ Training Configurations ------
     # TODO: Fix weight calculation
-    weights=torch.tensor([0.11756749, 0.58930845, 3.86320268, 1.42978694, 0.61211152,
-        0.21107389, 0.14174245, 0.16072167, 1.03913962, 0.87946776,
-        0.68799929, 3.74469765, 0.08783193, 0.43534866]).to(device)
     criterion = get_loss_function(
         args.loss,
         config["train"]["loss"][args.loss],
         config["data"]["unlabeled_id"],
-        weights
+        device=device,
     )
     optimizer = get_optimizer(
         args.optimizer,
         model.parameters(),
         config["train"]["optimizer"][args.optimizer],
+        param_groups,
     )
     scheduler = get_scheduler(
         args.scheduler,
@@ -138,35 +127,41 @@ def main(args, config):
         len(train_loader),
     )
     checkpoint_saver = CheckpointSaver(model, exp_dir, optimizer)
-    # early_stopping = EarlyStopping(
-    #     patience=config["train"]["early_stopping"]["patience"],
-    #     min_delta=config["train"]["early_stopping"]["delta"],
-    # )
 
     start_epoch = 0
     if args.resume:
         checkpoint_path = os.path.join(exp_dir, "checkpoint.pth")
         start_epoch = checkpoint_saver.load(checkpoint_path)
 
-    trainer = Trainer(
+    trainer = Runner(
         model,
+        device,
         optimizer,
         criterion,
-        device,
-        scheduler,
         config["model"][args.model]["rgb_only"],
+        config["model"][args.model]["use_hha"],
     )
 
     # ------ Training ------
-    best_loss = float("inf")
+    best_miou = 0
+    non_improved_epochs = 0
 
     for epoch in range(start_epoch, args.epochs):
         train_loss = trainer.train_epoch(train_loader)
         val_loss, val_miou = trainer.validate(val_loader)
 
-        if val_loss < best_loss:
+        scheduler.step()
+
+        if val_miou > best_miou + config["train"]["early_stopping"]["delta"]:
+            print(f"Validation mIoU improved from {best_miou:.4f} to {val_miou:.4f}. Saving model.")
             checkpoint_saver.save(epoch, verbose=True)
-            best_loss = val_loss
+            best_miou = val_miou
+            non_improved_epochs = 0
+        else:
+            non_improved_epochs += 1
+            if non_improved_epochs >= config["train"]["early_stopping"]["patience"]:
+                print(f"Early stopping at epoch {epoch} due to no improvement.")
+                break
 
         print(f"End of epoch {epoch} of experiment {args.experiment_name}:")
         print(f"  train loss: {train_loss:.4f}")
@@ -199,90 +194,6 @@ def configure_device():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     return device
-
-
-def get_model(name, **kwargs):
-    models = {
-        "fcn_resnet50": get_fcn_resnet50,
-        "deeplabv3_resnet50": get_deeplabv3_resnet50,
-        "fcn_resnet101": get_fcn_resnet101,
-        "deeplabv3_resnet101": get_deeplabv3_resnet101,
-        "unet": get_unet,
-        "unet_depth_concatenate": get_unet_depth_concatenate,
-        "dual_encoder_unet": get_dual_encoder_unet,
-    }
-    
-    if name not in models:
-        raise ValueError(f"Model {name} não suportado. Opções: {list(models.keys())}")
-    
-    return models[name](**kwargs)
-
-
-def get_loss_function(name: str, loss_config: dict, ignore_index: int, weights):
-    if name == "cross_entropy":
-        return nn.CrossEntropyLoss()
-    elif name == "weighted_cross_entropy":
-        return nn.CrossEntropyLoss(
-            weight=weights,
-            ignore_index=ignore_index,
-        )
-    elif name == "focal_loss":
-        return FocalLoss(
-            gamma=loss_config["gamma"],
-            ignore_index=ignore_index,
-            reduction=loss_config["reduction"]
-        )
-    elif name == "dice_loss":
-        return DiceLoss(
-            smooth=loss_config["smooth"],
-            ignore_index=ignore_index,
-        )
-    else:
-        raise ValueError(f"Unknown loss function: {name}")
-
-
-def get_optimizer(optimizer_name: str, model_params: dict, optimizer_config: dict):
-    if optimizer_name == "adam":
-        return torch.optim.AdamW(
-            model_params,
-            betas=optimizer_config["betas"],
-            eps=optimizer_config["eps"],
-            lr=optimizer_config["learning_rate"],
-            weight_decay=optimizer_config["weight_decay"],
-        )
-    elif optimizer_name == "sgd":
-        return torch.optim.SGD(
-            model_params,
-            lr=optimizer_config["learning_rate"],
-            momentum=optimizer_config["momentum"],
-            weight_decay=optimizer_config["weight_decay"],
-        )
-    else:
-        raise ValueError(f"Unknown optimizer: {optimizer_name}")
-
-
-def get_scheduler(scheduler_name, optimizer, scheduler_config, batch_size, num_epochs, len_dataloader):
-    if scheduler_name == "step":
-        return torch.optim.lr_scheduler.StepLR(
-            optimizer,
-            step_size=scheduler_config["step_size"],
-            gamma=scheduler_config["gamma"],
-        )
-    elif scheduler_name == "plateau":
-        return torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer,
-            mode="min",
-            factor=scheduler_config["factor"],
-            patience=scheduler_config["patience"],
-        )
-    elif scheduler_name == "polynomial":
-        return torch.optim.lr_scheduler.PolynomialLR(
-            optimizer,
-            total_iters=(num_epochs * len_dataloader) // batch_size,
-            power=scheduler_config["power"],
-        )
-    else:
-        raise ValueError(f"Unknown scheduler: {scheduler_name}")
 
 
 def read_config():

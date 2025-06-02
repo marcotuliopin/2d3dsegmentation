@@ -125,7 +125,9 @@ class NYUv2(Dataset):
             imgs.append(img)
         
         if self.hha_transform is not None:
-            img = Image.open(os.path.join(folder("depth"), self._files[index]))
+            file_index = self._files[index].split('.')[0]  
+            hha_filename = f"{file_index}_hha.png"
+            img = Image.open(os.path.join(folder("hha"), hha_filename))
             if flip: img = transforms.functional.hflip(img)
             img = self.hha_transform(img)
             imgs.append(img)

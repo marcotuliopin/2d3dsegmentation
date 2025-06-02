@@ -8,14 +8,9 @@ import numpy as np
 from tqdm import tqdm
 import yaml
 
-from models.deeplabv3_resnet101 import get_deeplabv3_resnet101
-from models.unet import get_unet
-from models.fcn_resnet101 import get_fcn_resnet101
-from models.deeplabv3_resnet50 import get_deeplabv3_resnet50
-from models.fcn_resnet50 import get_fcn_resnet50
-from models.dual_encoder_unet import get_dual_encoder_unet
-from models.unet_depth_concatenate import get_unet_depth_concatenate
 from utils.dataloader import nyuv2_dataloader
+from utils.getters import get_latest_checkpoint, get_model
+from utils.runner import Runner
 from utils.training import CheckpointSaver
 from utils.visualization import plot_confusion_matrix, visualize_predictions
 
@@ -79,13 +74,27 @@ def main(args, config):
     test_loader = nyuv2_dataloader(
         train=False,
         rgb_only=exp_config["model"]["rgb_only"],
+        use_hha=exp_config["model"]["use_hha"],
         batch_size=args.batch_size,
         num_workers=config["train"]["num_workers"],
         image_size=config["data"]["shape"],
     )
 
     # ------ Testing ------
-    results = test_model(model, test_loader, device, exp_config["num_classes"], config["data"]["unlabeled_id"])
+    tester = Runner(
+        model,
+        device,
+        rgb_only=exp_config["model"]["rgb_only"],
+        use_hha=exp_config["model"]["use_hha"],
+    )
+    preds, labels = tester.test(test_loader)
+
+    results = compute_segmentation_metrics(
+        preds=preds,
+        labels=labels,
+        num_classes=exp_config["num_classes"],
+        ignore_index=config["data"]["unlabeled_id"]
+    )
     results_dir = os.path.join(config["output"]["directories"]["results"], args.experiment_name)
 
     # Make sure the output directories exist
@@ -109,38 +118,6 @@ def main(args, config):
 
     vis_path = os.path.join(plots_dir, "predictions.png")
     visualize_predictions(model, test_loader, device, num_samples=4, save_path=vis_path)
-
-
-def test_model(model, data_loader, device, num_classes, unlabeled_id):
-    all_preds = []
-    all_labels = []
-
-    model.eval()
-    with torch.no_grad():
-        for images, masks, depth in tqdm(data_loader):
-            if depth is not None:
-                images = torch.cat((images, depth), dim=1)
-            images = images.to(device)
-            masks = masks.to(device)
-
-            outputs = model(images)
-            if isinstance(outputs, dict):
-                outputs = outputs["out"]
-
-            preds = torch.argmax(outputs, dim=1)
-
-            all_preds.append(preds)
-            all_labels.append(masks)
-
-    all_preds = torch.cat(all_preds, dim=0)
-    all_labels = torch.cat(all_labels, dim=0)
-
-    return compute_segmentation_metrics(
-        preds=all_preds,
-        labels=all_labels,
-        num_classes=num_classes,
-        ignore_index=unlabeled_id
-    )
 
 
 def compute_segmentation_metrics(preds, labels, num_classes, ignore_index=255):
@@ -198,30 +175,6 @@ def compute_segmentation_metrics(preds, labels, num_classes, ignore_index=255):
         "f1_per_class": f1_per_class,
         "mean_f1": mean_f1,
     }
-
-
-def get_model(name, **kwargs):
-    models = {
-        "fcn_resnet50": get_fcn_resnet50,
-        "deeplabv3_resnet50": get_deeplabv3_resnet50,
-        "fcn_resnet101": get_fcn_resnet101,
-        "deeplabv3_resnet101": get_deeplabv3_resnet101,
-        "unet": get_unet,
-        "dual_encoder_unet": get_dual_encoder_unet,
-        "unet_depth_concatenate": get_unet_depth_concatenate,
-    }
-    
-    if name not in models:
-        raise ValueError(f"Model {name} não suportado. Opções: {list(models.keys())}")
-    
-    return models[name](**kwargs)
-
-
-def get_latest_checkpoint(checkpoint_dir):
-    checkpoints = [f for f in os.listdir(checkpoint_dir) if f.endswith(".pth")]
-    if not checkpoints:
-        raise FileNotFoundError(f"No checkpoint found at {checkpoint_dir}")
-    return os.path.join(checkpoint_dir, checkpoints[-1])
 
 
 def set_seed(seed=42):

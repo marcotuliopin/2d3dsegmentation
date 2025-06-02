@@ -1,6 +1,5 @@
 import os
 import torch
-from tqdm import tqdm
 
 
 class CheckpointSaver:
@@ -47,83 +46,3 @@ class EarlyStopping:
                 print("Early stopping triggered")
                 return True
         return False
-
-
-class Trainer:
-    def __init__(self, model, optimizer, criterion, device, scheduler=None, rgb_only=False):
-        self.model = model
-        self.optimizer = optimizer
-        self.criterion = criterion
-        self.device = device
-        self.scheduler = scheduler
-        self.rgb_only = rgb_only
-
-    def train_epoch(self, loader):
-        self.model.train()
-        running_loss = 0.0
-        
-        for batch in tqdm(loader, desc=f"training epoch"):
-            if self.rgb_only:
-                images, masks = batch
-            else:
-                # Add depth as fourth channel to image
-                images, masks, depth = batch
-                images = torch.cat((images, depth), dim=1)
-
-            images = images.to(self.device)
-            masks = masks.to(self.device)
-
-            self.optimizer.zero_grad()
-            outputs = self.model(images)
-            if isinstance(outputs, dict):
-                outputs = outputs["out"]
-
-            loss = self.criterion(outputs, masks)
-            running_loss += loss.item()
-
-            loss.backward()
-
-            self.optimizer.step()
-            self.scheduler.step()
-        
-        loss = running_loss / len(loader)
-        return loss
-
-    def validate(self, loader):
-        self.model.eval()
-        running_loss = 0.0
-
-        conf_matrix = torch.zeros(14, 14, device=self.device)
-        
-        with torch.no_grad():
-            for batch in tqdm(loader, desc=f"validation epoch"):
-                if self.rgb_only:
-                    images, masks = batch
-                else:
-                    # Add depth as fourth channel to image
-                    images, masks, depth = batch
-                    images = torch.cat((images, depth), dim=1)
-
-                images = images.to(self.device)
-                masks = masks.to(self.device)
-
-                outputs = self.model(images)
-                if isinstance(outputs, dict):
-                    outputs = outputs["out"]
-
-                loss = self.criterion(outputs, masks)
-                running_loss += loss.item()
-
-                preds = torch.argmax(outputs, dim=1)
-                k = conf_matrix.size(0)
-                idx = masks * k + preds
-                bincount = torch.bincount(idx.flatten(), minlength=k*k)
-                conf_matrix += bincount.reshape(k, k)
-        
-        intersection = torch.diag(conf_matrix)
-        union = conf_matrix.sum(1) + conf_matrix.sum(0) - intersection
-        iou = intersection.float() / (union.float() + 1e-6)
-        miou = iou.mean().item()
-
-        loss = running_loss / len(loader)
-        return loss, miou
