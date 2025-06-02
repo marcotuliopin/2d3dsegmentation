@@ -107,7 +107,7 @@ train:
     polynomial:
       power: 0.9
     step:
-      gamma: 0.8
+      gamma: 0.3
       step_size: 30
 
   optimizer:
