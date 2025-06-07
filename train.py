@@ -102,7 +102,7 @@ def main(args, config):
         **config["model"][args.model]["config"],
     )
     model = model.to(device)
-    param_groups = model.get_optimizer_groups()
+    optimizer_params = model.get_optimizer_groups()
 
     # ------ Training Configurations ------
     # TODO: Fix weight calculation
@@ -116,7 +116,7 @@ def main(args, config):
         args.optimizer,
         model.parameters(),
         config["train"]["optimizer"][args.optimizer],
-        param_groups,
+        optimizer_params,
     )
     scheduler = get_scheduler(
         args.scheduler,

@@ -345,7 +345,7 @@ def get_segmentation_colors(seg: torch.Tensor):
     """
     cmap = plt.cm.get_cmap("tab20", 14)
     colored_seg = cmap(seg.cpu().numpy())
-    colored_seg[seg == 255] = [0, 0, 0, 1]  # Set background to black
-    colored_seg = colored_seg[:, :, :, :3]
-    colored_seg = torch.from_numpy(colored_seg).permute(3, 1, 2, 0)  # Convert to CxHxW
-    return colored_seg.squeeze()
+    colored_seg[seg == 0] = [0, 0, 0, 1]  # Set background to black
+    colored_seg = colored_seg[:, :, :3]
+    colored_seg = torch.from_numpy(colored_seg).permute(2, 0, 1)  # Convert to CxHxW
+    return colored_seg

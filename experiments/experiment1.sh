@@ -3,33 +3,42 @@
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-python train.py -n unet_resnet50_hha \
+python train.py -n unet_resnet50_2enc \
+    --optimizer sgd \
+    --scheduler step \
+    --loss weighted_cross_entropy \
+    --model unet_dual_encoder \
+
+echo "Evaluating experiment..."
+python evaluate.py -n unet_resnet50_2enc
+
+python train.py -n unet_resnet50_hha_1 \
     --optimizer sgd \
     --scheduler step \
     --loss weighted_cross_entropy \
     --model unet_hha_concatenate \
 
 echo "Evaluating experiment..."
-python evaluate.py -n unet_resnet50_hha
+python evaluate.py -n unet_resnet50_hha_1
 
 echo "unet_resnet50_w experiment started..."
-python train.py -n unet_resnet50_w \
+python train.py -n unet_resnet50_w_1 \
     --optimizer sgd \
     --scheduler step \
     --loss weighted_cross_entropy \
     --model unet_resnet50 \
 
 echo "Evaluating experiment..."
-python evaluate.py -n unet_resnet50_w
+python evaluate.py -n unet_resnet50_w_1
 
 echo "unet_resnet50_d experiment started..."
-python train.py -n unet_resnet50_d \
+python train.py -n unet_resnet50_d_1 \
     --optimizer sgd \
     --scheduler step \
     --loss weighted_cross_entropy \
     --model unet_depth_concatenate \
 
 echo "Evaluating experiment..."
-python evaluate.py -n unet_resnet50_d
+python evaluate.py -n unet_resnet50_d_1
 
 echo "Experiments completed."

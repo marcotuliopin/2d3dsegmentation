@@ -34,13 +34,15 @@ class UNet(nn.Module):
             param.requires_grad = trainable
     
     def get_optimizer_groups(self):
-        return {
-            "first_layer": list(self.unet.encoder.conv1.parameters()),
-            "encoder": [p for name, p in self.unet.encoder.named_parameters()
-                        if "conv1" not in name],
-            "decoder": list(self.unet.decoder.parameters())
-            + list(self.unet.segmentation_head.parameters()),
-        }
+        first_layer = list(self.unet.encoder.conv1.parameters())
+        encoder = [p for name, p in self.unet.encoder.named_parameters() if "conv1" not in name]
+        decoder = list(self.unet.decoder.parameters()) + list(self.unet.segmentation_head.parameters())
+
+        return [
+            {"params": first_layer, "lr": 5e-3},        
+            {"params": encoder, "lr": 1e-3},
+            {"params": decoder, "lr": 1e-2},
+        ]
 
 
 def get_unet(num_classes, dropout=0.3, pretrained=True, encoder="resnet50"):

@@ -4,7 +4,7 @@ import torch.nn as nn
 
 from models.deeplabv3_resnet101 import get_deeplabv3_resnet101
 from models.deeplabv3_resnet50 import get_deeplabv3_resnet50
-from models.dual_encoder_unet import get_dual_encoder_unet
+from models.unet_depth_dual_encoder import get_unet_dual_encoder
 from models.fcn_resnet101 import get_fcn_resnet101
 from models.fcn_resnet50 import get_fcn_resnet50
 from models.unet import get_unet
@@ -28,7 +28,7 @@ def get_model(name, **kwargs):
         "unet": get_unet,
         "unet_depth_concatenate": get_unet_depth_concatenate,
         "unet_hha_concatenate": get_unet_hha_concatenate,
-        "dual_encoder_unet": get_dual_encoder_unet,
+        "unet_dual_encoder": get_unet_dual_encoder,
     }
     
     if name not in models:
@@ -60,7 +60,7 @@ def get_loss_function(name: str, loss_config: dict, ignore_index: int, device: s
         raise ValueError(f"Unknown loss function: {name}")
 
 
-def get_optimizer(optimizer_name: str, model_params: dict, optimizer_config: dict, param_groups: dict):
+def get_optimizer(optimizer_name: str, model_params: dict, optimizer_config: dict, param_groups: list):
     if optimizer_name == "adam":
         return torch.optim.AdamW(
             model_params,
@@ -70,11 +70,8 @@ def get_optimizer(optimizer_name: str, model_params: dict, optimizer_config: dic
             weight_decay=optimizer_config["weight_decay"],
         )
     elif optimizer_name == "sgd":
-        # TODO: Add this to config
         return torch.optim.SGD(
-            [{'params': param_groups['first_layer'], 'lr': 5e-3},
-            {'params': param_groups['encoder'], 'lr': 1e-3},
-            {'params': param_groups['decoder'], 'lr': 1e-2}],
+            param_groups,
             lr=optimizer_config["learning_rate"],
             momentum=optimizer_config["momentum"],
             weight_decay=optimizer_config["weight_decay"],

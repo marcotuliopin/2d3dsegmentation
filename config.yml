@@ -47,8 +47,8 @@ model:
     config:
       encoder: resnet101
       dropout: 0.3
-  dual_encoder_unet:
-    name: dual_encoder_unet
+  unet_dual_encoder:
+    name: unet_dual_encoder
     use_hha: false
     rgb_only: false
     config:

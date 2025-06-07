@@ -47,13 +47,15 @@ class UNetD1(nn.Module):
             param.requires_grad = trainable
 
     def get_optimizer_groups(self):
-        return {
-            "first_layer": list(self.unet.encoder.conv1.parameters()),
-            "encoder": [p for name, p in self.unet.encoder.named_parameters()
-                if "conv1" not in name],
-            "decoder": list(self.unet.decoder.parameters())
-            + list(self.unet.segmentation_head.parameters()),
-        }
+        first_layer = list(self.unet.encoder.conv1.parameters())
+        encoder = [p for name, p in self.unet.encoder.named_parameters() if "conv1" not in name]
+        decoder = list(self.unet.decoder.parameters()) + list(self.unet.segmentation_head.parameters())
+
+        return [
+            {"params": first_layer, "lr": 5e-3},        
+            {"params": encoder, "lr": 1e-3},
+            {"params": decoder, "lr": 1e-2},
+        ]
     
     def _adapt_input_channels(self):
         first_conv = self.unet.encoder.conv1
@@ -68,12 +70,11 @@ class UNetD1(nn.Module):
         )
 
         with torch.no_grad():
-            new_conv.weight[:, :3, :, :] = first_conv.weight
+            new_conv.weight.data[:, :3, :, :] = first_conv.weight.data
             # Initialize the depth channel weights with the average of the RGB channels
-            new_conv.weight[:, 3, :, :] = new_conv.weight[:, :3, :, :].mean(dim=1)
-            
+            new_conv.weight.data[:, 3, :, :] = new_conv.weight.data[:, :3, :, :].mean(dim=1)
             if first_conv.bias is not None:
-                new_conv.bias = first_conv.bias
+                new_conv.bias.data = first_conv.bias.data.clone()
         
         self.unet.encoder.conv1 = new_conv
 

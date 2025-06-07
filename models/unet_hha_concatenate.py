@@ -47,13 +47,15 @@ class UNetHHA(nn.Module):
             param.requires_grad = trainable
 
     def get_optimizer_groups(self):
-        return {
-            "first_layer": list(self.unet.encoder.conv1.parameters()),
-            "encoder": [p for name, p in self.unet.encoder.named_parameters()
-                if "conv1" not in name],
-            "decoder": list(self.unet.decoder.parameters())
-            + list(self.unet.segmentation_head.parameters()),
-        }
+        first_layer = list(self.unet.encoder.conv1.parameters())
+        encoder = [p for name, p in self.unet.encoder.named_parameters() if "conv1" not in name]
+        decoder = list(self.unet.decoder.parameters()) + list(self.unet.segmentation_head.parameters())
+
+        return [
+            {"params": first_layer, "lr": 5e-3},        
+            {"params": encoder, "lr": 1e-3},
+            {"params": decoder, "lr": 1e-2},
+        ]
 
     def _adapt_input_channels(self):
         first_conv = self.unet.encoder.conv1  # For Resnet
@@ -69,12 +71,12 @@ class UNetHHA(nn.Module):
 
         with torch.no_grad():
             # Copy original RGB weights
-            new_conv.weight[:, :3, :, :] = first_conv.weight
+            new_conv.weight.data[:, :3, :, :] = first_conv.weight.data
             # Duplicate the RGB weights for HHA channels
-            new_conv.weight[:, 3:, :, :] = first_conv.weight
+            new_conv.weight.data[:, 3:, :, :] = first_conv.weight.data
 
             if first_conv.bias is not None:
-                new_conv.bias = first_conv.bias
+                new_conv.bias.data = first_conv.bias.data.clone()
 
         self.unet.encoder.conv1 = new_conv
 
