@@ -41,9 +41,11 @@ class FocalLoss(nn.Module):
         if len(targets_flat) == 0:
             return torch.tensor(0.0, device=inputs.device, requires_grad=True)
         
+        # Gather log probabilities for the true class labels
         log_pt = log_pt.gather(1, targets_flat.unsqueeze(1)).squeeze(1)
         pt = log_pt.exp()
         
+        # Calculate focal loss components
         focal_weight = (1 - pt) ** self.gamma
         
         # Ajust weights based on alpha if provided
@@ -52,7 +54,6 @@ class FocalLoss(nn.Module):
             
         alpha_t = self.alpha[targets_flat]
         focal_weight = alpha_t * focal_weight
-        
         focal_loss = -focal_weight * log_pt
         
         # Reduction transforms a batch of losses into a single scalar

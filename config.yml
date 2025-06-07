@@ -47,13 +47,6 @@ model:
     config:
       encoder: resnet101
       dropout: 0.3
-  unet_dual_encoder:
-    name: unet_dual_encoder
-    use_hha: false
-    rgb_only: false
-    config:
-      encoder: resnet50
-      dropout: 0.3
   unet_depth_concatenate:
     name: unet_depth_concatenate
     use_hha: false
@@ -63,6 +56,20 @@ model:
       dropout: 0.3
   unet_hha_concatenate:
     name: unet_hha_concatenate
+    use_hha: true
+    rgb_only: false
+    config:
+      encoder: resnet50
+      dropout: 0.3
+  unet_depth_dual_encoder:
+    name: unet_depth_dual_encoder
+    use_hha: false
+    rgb_only: false
+    config:
+      encoder: resnet50
+      dropout: 0.3
+  unet_hha_dual_encoder:
+    name: unet_hha_dual_encoder
     use_hha: true
     rgb_only: false
     config:
@@ -93,7 +100,7 @@ train:
     dice_loss:
       smooth: 1.0e-05
     focal_loss:
-      gamma: 1.5
+      gamma: 0.5
       reduction: mean
     weighted_cross_entropy:
       weight: None

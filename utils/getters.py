@@ -4,12 +4,13 @@ import torch.nn as nn
 
 from models.deeplabv3_resnet101 import get_deeplabv3_resnet101
 from models.deeplabv3_resnet50 import get_deeplabv3_resnet50
-from models.unet_depth_dual_encoder import get_unet_dual_encoder
 from models.fcn_resnet101 import get_fcn_resnet101
 from models.fcn_resnet50 import get_fcn_resnet50
 from models.unet import get_unet
 from models.unet_depth_concatenate import get_unet_depth_concatenate
 from models.unet_hha_concatenate import get_unet_hha_concatenate
+from models.unet_depth_dual_encoder import get_unet_depth_dual_encoder
+from models.unet_hha_dual_encoder import get_unet_hha_dual_encoder
 from utils.losses import DiceLoss, FocalLoss
 
 
@@ -28,11 +29,12 @@ def get_model(name, **kwargs):
         "unet": get_unet,
         "unet_depth_concatenate": get_unet_depth_concatenate,
         "unet_hha_concatenate": get_unet_hha_concatenate,
-        "unet_dual_encoder": get_unet_dual_encoder,
+        "unet_depth_dual_encoder": get_unet_depth_dual_encoder,
+        "unet_hha_dual_encoder": get_unet_hha_dual_encoder,
     }
     
     if name not in models:
-        raise ValueError(f"Model {name} não suportado. Opções: {list(models.keys())}")
+        raise ValueError(f"Model {name} not supported. Options are: {list(models.keys())}")
     
     return models[name](**kwargs)
 
