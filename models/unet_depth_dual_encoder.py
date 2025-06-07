@@ -5,7 +5,7 @@ from segmentation_models_pytorch.encoders import get_encoder
 from segmentation_models_pytorch.decoders.unet.decoder import UnetDecoder
 
 
-class UnetDualEncoder(nn.Module):
+class UnetDualEncoderD(nn.Module):
     def __init__(self, num_classes, encoder="resnet50", dropout=0.3, pretrained=True):
         super().__init__()
 
@@ -93,13 +93,13 @@ class UnetDualEncoder(nn.Module):
 
         with torch.no_grad():
             # Initialize the depth channel weights with the average of the RGB channels
-            new_conv_depth.weight.data = first_conv_rgb.weight.mean(dim=1, keepdim=True)
+            new_conv_depth.weight.data = first_conv_rgb.weight.data.mean(dim=1, keepdim=True)
             if first_conv_depth.bias is not None:
                 new_conv_depth.bias.data = first_conv_depth.bias.data.clone()
 
         self.d_encoder.conv1 = new_conv_depth
 
 
-def get_unet_dual_encoder(num_classes, dropout=0.3, pretrained=True, encoder="resnet50"):
+def get_unet_depth_dual_encoder(num_classes, dropout=0.3, pretrained=True, encoder="resnet50"):
     print(f"Using Unet with {encoder}. Using dual encoders for RGB and Depth inputs.")
-    return UnetDualEncoder(num_classes=num_classes, dropout=dropout, pretrained=pretrained, encoder=encoder)
+    return UnetDualEncoderD(num_classes=num_classes, dropout=dropout, pretrained=pretrained, encoder=encoder)
