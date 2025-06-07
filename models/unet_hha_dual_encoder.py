@@ -93,11 +93,11 @@ class UnetDualEncoderHHA(nn.Module):
 
         with torch.no_grad():
             # Initialize the HHA channel weights with the average of the RGB channels
-            new_conv_hha.weight.data = first_conv_rgb.weight.data.copy()
+            new_conv_hha.weight.data = first_conv_rgb.weight.data.clone()
             if first_conv_hha.bias is not None:
                 new_conv_hha.bias.data = first_conv_hha.bias.data.clone()
 
-        self.d_encoder.conv1 = new_conv_hha
+        self.hha_encoder.conv1 = new_conv_hha
 
 
 def get_unet_hha_dual_encoder(num_classes, dropout=0.3, pretrained=True, encoder="resnet50"):
