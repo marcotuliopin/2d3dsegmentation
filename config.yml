@@ -75,6 +75,14 @@ model:
     config:
       encoder: resnet50
       dropout: 0.3
+  unet_hha_attention:
+    name: unet_hha_attention
+    use_hha: true
+    rgb_only: false
+    config:
+      encoder: resnet50
+      dropout: 0.3
+      attention_reduction_ratio: 8
 
 output:
   directories:

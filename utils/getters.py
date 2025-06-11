@@ -8,6 +8,7 @@ from models.fcn_resnet101 import get_fcn_resnet101
 from models.fcn_resnet50 import get_fcn_resnet50
 from models.unet import get_unet
 from models.unet_depth_concatenate import get_unet_depth_concatenate
+from models.unet_hha_attention import get_unet_hha_attention
 from models.unet_hha_concatenate import get_unet_hha_concatenate
 from models.unet_depth_dual_encoder import get_unet_depth_dual_encoder
 from models.unet_hha_dual_encoder import get_unet_hha_dual_encoder
@@ -31,6 +32,7 @@ def get_model(name, **kwargs):
         "unet_hha_concatenate": get_unet_hha_concatenate,
         "unet_depth_dual_encoder": get_unet_depth_dual_encoder,
         "unet_hha_dual_encoder": get_unet_hha_dual_encoder,
+        "unet_hha_attention": get_unet_hha_attention,
     }
     
     if name not in models:

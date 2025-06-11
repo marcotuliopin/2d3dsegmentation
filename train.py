@@ -11,6 +11,7 @@ from utils.dataloader import nyuv2_dataloader
 from utils.getters import get_loss_function, get_model, get_optimizer, get_scheduler
 from utils.runner import Runner
 from utils.training import CheckpointSaver
+from torchinfo import summary
 
 
 def parse_args(config):
@@ -102,6 +103,7 @@ def main(args, config):
         **config["model"][args.model]["config"],
     )
     model = model.to(device)
+    summary(model, (1, 6, 360, 480))
     optimizer_params = model.get_optimizer_groups()
 
     # ------ Training Configurations ------
