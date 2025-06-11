@@ -105,7 +105,6 @@ def main(args, config):
     optimizer_params = model.get_optimizer_groups()
 
     # ------ Training Configurations ------
-    # TODO: Fix weight calculation
     criterion = get_loss_function(
         args.loss,
         config["train"]["loss"][args.loss],

@@ -1,12 +1,12 @@
 import os
 import random
-from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score
 import torch
 import pickle
 import argparse
 import numpy as np
-from tqdm import tqdm
 import yaml
+from ptflops import get_model_complexity_info
+from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score
 
 from utils.dataloader import nyuv2_dataloader
 from utils.getters import get_latest_checkpoint, get_model
@@ -87,7 +87,7 @@ def main(args, config):
         rgb_only=exp_config["model"]["rgb_only"],
         use_hha=exp_config["model"]["use_hha"],
     )
-    preds, labels = tester.test(test_loader)
+    preds, labels, avg_inference_time = tester.test(test_loader)
 
     results = compute_segmentation_metrics(
         preds=preds,
@@ -106,7 +106,13 @@ def main(args, config):
     cm_path = os.path.join(plots_dir, "confusion_matrix.png")
     plot_confusion_matrix(results["confusion_matrix"], save_path=cm_path)
 
+    gflops, total_params = compute_model_stats(model, test_loader, device, exp_config)
+
     with open(os.path.join(results_dir, "test_results.txt"), "w") as f:
+        f.write(f"Model: {exp_config["model"]["name"]}\n")
+        f.write(f"Total Model Parameters: {total_params}\n")
+        f.write(f"Average Inference Time: {avg_inference_time:.6f}\n")
+        f.write(f"GFLOPs: {gflops:.2f}\n")
         f.write(f"Mean IoU: {results['mean_iou']:.4f}\n")
         f.write(f"Weighted IoU: {results['weighted_iou']:.4f}\n")
         f.write(f"Mean Dice: {results['mean_dice']:.4f}\n")
@@ -175,6 +181,38 @@ def compute_segmentation_metrics(preds, labels, num_classes, ignore_index=255):
         "f1_per_class": f1_per_class,
         "mean_f1": mean_f1,
     }
+
+    
+def compute_model_stats(model, loader, device, exp_config):
+    dummy_input = None
+    for batch in loader:
+        if exp_config["model"]["rgb_only"]:
+            dummy_input = batch[0][:1].to(device)  # RGB: [1, 3, H, W]
+            input_shape = (3, dummy_input.shape[2], dummy_input.shape[3])
+        elif exp_config["model"]["use_hha"]:
+            images, _, hha = batch
+            dummy_input = torch.cat((images[:1], hha[:1]), dim=1).to(device)  # RGB + HHA: [1, 6, H, W]
+            input_shape = (6, dummy_input.shape[2], dummy_input.shape[3])
+        else:
+            images, _, depth = batch
+            dummy_input = torch.cat((images[:1], depth[:1]), dim=1).to(device)  # RGB + Depth: [1, 4, H, W]
+            input_shape = (4, dummy_input.shape[2], dummy_input.shape[3])
+        break
+    
+    macs, params = get_model_complexity_info(
+        model, 
+        input_shape, 
+        as_strings=False,
+        print_per_layer_stat=False,
+        verbose=False
+    )
+    
+    gflops = macs / 1e9 / 2
+    
+    macs_str = f"{macs/1e9:.2f} G"
+    params_str = f"{params/1e6:.2f} M"
+
+    return gflops, params
 
 
 def set_seed(seed=42):

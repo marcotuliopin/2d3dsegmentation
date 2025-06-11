@@ -1,3 +1,4 @@
+import time
 import torch
 from tqdm import tqdm
 
@@ -99,6 +100,8 @@ class Runner:
         self.model.eval()
 
         with torch.no_grad():
+            start = time.time()
+
             for batch in tqdm(loader):
                 if self.rgb_only:
                     images, masks = batch
@@ -121,7 +124,11 @@ class Runner:
                 all_preds.append(preds)
                 all_labels.append(masks)
 
+            torch.cuda.synchronize()
+            end = time.time()
+            avg_inference_time = (end - start) / len(loader)
+
         all_preds = torch.cat(all_preds, dim=0)
         all_labels = torch.cat(all_labels, dim=0)
 
-        return all_preds, all_labels
+        return all_preds, all_labels, avg_inference_time
