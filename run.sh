@@ -1,7 +1,7 @@
 #!/bin/bash
 
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$PROJECT_ROOT"
+echo "Evaluating experiment..."
+python evaluate.py -n unet_resnet50_2enc_hha
 
 python train.py -n unet_resnet50_2enc_hha \
     --optimizer sgd \
@@ -11,6 +11,15 @@ python train.py -n unet_resnet50_2enc_hha \
 
 echo "Evaluating experiment..."
 python evaluate.py -n unet_resnet50_2enc_hha
+
+python train.py -n unet_resnet50_hha_fl \
+    --optimizer sgd \
+    --scheduler step \
+    --loss focal_loss \
+    --model unet_hha_concatenate \
+
+echo "Evaluating experiment..."
+python evaluate.py -n unet_resnet50_hha_fl
 
 python train.py -n unet_resnet50_2enc_d \
     --optimizer sgd \
@@ -29,15 +38,6 @@ python train.py -n unet_resnet50_hha_1 \
 
 echo "Evaluating experiment..."
 python evaluate.py -n unet_resnet50_hha_1
-
-python train.py -n unet_resnet50_hha_fl \
-    --optimizer sgd \
-    --scheduler step \
-    --loss focal_loss \
-    --model unet_hha_concatenate \
-
-echo "Evaluating experiment..."
-python evaluate.py -n unet_resnet50_hha_fl
 
 echo "unet_resnet50_w experiment started..."
 python train.py -n unet_resnet50_w_1 \

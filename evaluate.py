@@ -123,7 +123,15 @@ def main(args, config):
             f.write(f"  Classe {i}: {results['class_iou'][i]:.4f}\n")
 
     vis_path = os.path.join(plots_dir, "predictions.png")
-    visualize_predictions(model, test_loader, device, num_samples=4, save_path=vis_path)
+    visualize_predictions(
+        model,
+        test_loader,
+        device,
+        num_samples=4,
+        save_path=vis_path,
+        rgb_only=exp_config["model"]["rgb_only"],
+        use_hha=exp_config["model"]["use_hha"],
+    )
 
 
 def compute_segmentation_metrics(preds, labels, num_classes, ignore_index=255):
@@ -182,7 +190,7 @@ def compute_segmentation_metrics(preds, labels, num_classes, ignore_index=255):
         "mean_f1": mean_f1,
     }
 
-    
+
 def compute_model_stats(model, loader, device, exp_config):
     dummy_input = None
     for batch in loader:
@@ -208,10 +216,6 @@ def compute_model_stats(model, loader, device, exp_config):
     )
     
     gflops = macs / 1e9 / 2
-    
-    macs_str = f"{macs/1e9:.2f} G"
-    params_str = f"{params/1e6:.2f} M"
-
     return gflops, params
 
 

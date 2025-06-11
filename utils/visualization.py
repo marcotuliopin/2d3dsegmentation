@@ -69,34 +69,50 @@ def plot_confusion_matrix(cm, title='Confusion matrix', cmap=plt.cm.Blues, norma
         plt.show()
 
 
-def visualize_predictions(model, data_loader, device, num_samples=5, save_path=None):
+def visualize_predictions(model, data_loader, device, num_samples=5, save_path=None, rgb_only=True, use_hha=False):
     model.eval()
-    images, masks = next(iter(data_loader))
+    batch = next(iter(data_loader))
+    
+    # Extract data based on model type
+    if rgb_only:
+        images, masks = batch
+    elif use_hha:
+        images, masks, hha = batch
+        concat_inputs = torch.cat((images, hha), dim=1)  # Combine RGB and HHA
+    else:
+        images, masks, depth = batch
+        concat_inputs = torch.cat((images, depth), dim=1)  # Combine RGB and depth
     
     # Limitar ao número disponível no batch
     batch_size = images.shape[0]
     num_samples = min(num_samples, batch_size)
     
-    images = images[:num_samples].to(device)
+    # Prepare inputs for the model
+    if rgb_only:
+        model_input = images[:num_samples].to(device)
+    else:
+        model_input = concat_inputs[:num_samples].to(device)
+        
     masks = masks[:num_samples].cpu().numpy()
     
+    # Get predictions
     with torch.no_grad():
-        outputs = model(images)
-        if (isinstance(outputs, dict)):
+        outputs = model(model_input)
+        if isinstance(outputs, dict):
             outputs = outputs["out"]
         preds = torch.argmax(outputs, dim=1).cpu().numpy()
     
-    # Denormalizar imagens
-    images = images.cpu().numpy()
-    images = np.transpose(images, (0, 2, 3, 1))
+    # Denormalizar apenas as imagens RGB para visualização
+    display_images = images[:num_samples].cpu().numpy()
+    display_images = np.transpose(display_images, (0, 2, 3, 1))
     # Reversão da normalização para visualização
     mean = np.array([0.485, 0.456, 0.406])
     std = np.array([0.229, 0.224, 0.225])
-    images = std * images + mean
-    images = np.clip(images, 0, 1)
+    display_images = std * display_images + mean
+    display_images = np.clip(display_images, 0, 1)
 
     # Carregar mapeamento id2label se fornecido
-    id2label_path = "data/NYUDepthv2_seg/id2label.json"
+    id2label_path = "data/nyuv2/id2label.json"
     id2label = None
     if id2label_path:
         try:
@@ -125,16 +141,13 @@ def visualize_predictions(model, data_loader, device, num_samples=5, save_path=N
     for class_id in all_classes:
         color = cmap(class_id)
         class_name = id2label[str(class_id)] if id2label and str(class_id) in id2label else f"Class {class_id}"
-        legend_patches.append(
-            plt.Rectangle((0, 0), 1, 1, fc=color, 
-                         label=f"{class_id}: {class_name}")
-        )
+        legend_patches.append(plt.Rectangle((0, 0), 1, 1, fc=color, label=f"{class_id}: {class_name}"))
     
     # Adicionar visualizações
     for i in range(num_samples):
-        # Imagem original
+        # Imagem original - Use display_images que já está no formato correto
         ax1 = fig.add_subplot(gs[i, 0])
-        ax1.imshow(images[i])
+        ax1.imshow(display_images[i])
         ax1.set_title("Original Image")
         ax1.axis('off')
         
