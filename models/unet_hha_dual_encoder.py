@@ -27,6 +27,14 @@ class UnetDualEncoderHHA(nn.Module):
 
         if pretrained:
             self._adapt_input_channels()
+        
+        # Batch normalization for each encoder output
+        self.rgb_norms = nn.ModuleList([
+            nn.BatchNorm2d(ch) for ch in self.rgb_encoder.out_channels
+        ])
+        self.hha_norms = nn.ModuleList([
+            nn.BatchNorm2d(ch) for ch in self.hha_encoder.out_channels
+        ])
 
         # Double of channels since we concatenate RGB and Depth features
         self.encoder_channels = [
@@ -53,8 +61,8 @@ class UnetDualEncoderHHA(nn.Module):
         hha_feats = self.hha_encoder(hha)
 
         # Fusion of features using concatenation
-        rgb_feats_norm = [F.normalize(feat, p=2, dim=1) for feat in rgb_feats]
-        hha_feats_norm = [F.normalize(feat, p=2, dim=1) for feat in hha_feats]
+        rgb_feats_norm = [norm(feat) for feat, norm in zip(rgb_feats, self.rgb_norms)]
+        hha_feats_norm = [norm(feat) for feat, norm in zip(hha_feats, self.hha_norms)]
         feats = [torch.cat([r, h], dim=1) for r, h in zip(rgb_feats_norm, hha_feats_norm)]
 
         decoder_output = self.decoder(feats)
@@ -83,7 +91,7 @@ class UnetDualEncoderHHA(nn.Module):
         first_conv_hha = self.hha_encoder.conv1
         
         new_conv_hha = nn.Conv2d(
-            1,  # HHA channel
+            3,  # HHA channel
             out_channels=first_conv_hha.out_channels,
             kernel_size=first_conv_hha.kernel_size,
             stride=first_conv_hha.stride,
