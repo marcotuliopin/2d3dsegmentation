@@ -3,6 +3,7 @@ import os
 import pickle
 import argparse
 import random
+from time import time
 import numpy as np
 import yaml
 import torch
@@ -103,7 +104,9 @@ def main(args, config):
         **config["model"][args.model]["config"],
     )
     model = model.to(device)
-    summary(model, (1, 6, 360, 480))
+    with open(os.path.join(exp_dir, "model_summary.txt"), "w") as f:
+        f.write(str(summary(model, (1, 6, 240, 360))))
+
     optimizer_params = model.get_optimizer_groups()
 
     # ------ Training Configurations ------
@@ -146,7 +149,8 @@ def main(args, config):
     # ------ Training ------
     best_miou = 0
     non_improved_epochs = 0
-
+    
+    start_time = time()
     for epoch in range(start_epoch, args.epochs):
         train_loss = trainer.train_epoch(train_loader)
         val_loss, val_miou = trainer.validate(val_loader)
@@ -164,10 +168,15 @@ def main(args, config):
                 print(f"Early stopping at epoch {epoch} due to no improvement.")
                 break
 
-        print(f"End of epoch {epoch} of experiment {args.experiment_name}:")
-        print(f"  train loss: {train_loss:.4f}")
-        print(f"  val loss: {val_loss:.4f}")
-        print(f"  val miou: {val_miou:.4f}")
+        print_log(
+            experiment_name=args.experiment_name,
+            epoch=epoch,
+            train_loss=train_loss,
+            val_loss=val_loss,
+            val_miou=val_miou,
+            learning_rate=scheduler.get_last_lr()[0],
+            time_elapsed=time() - start_time,
+        )
 
     print(f"Training complete. Results saved in {exp_dir}")
 
@@ -245,6 +254,28 @@ def save_experiment_config(config, args):
     config_path = os.path.join(exp_dir, f"{args.experiment_name}_config.yml")
     with open(config_path, "w", encoding="utf-8") as f:
         yaml.dump(experiment_config, f, default_flow_style=False, encoding=None)
+
+
+def print_log(
+    experiment_name,
+    epoch,
+    train_loss,
+    val_loss,
+    val_miou,
+    learning_rate,
+    time_elapsed
+):
+    print(f"experiment: {experiment_name:<30}")
+    print("----------------------------------")
+    print(f"| time/               |          |")
+    print(f"|    epochs           | {epoch:<8} |")
+    print(f"|    time_elapsed     | {time_elapsed:<8.1f} |")
+    print(f"| train/              |          |")
+    print(f"|    learning_rate    | {learning_rate:<8.6f} |")
+    print(f"|    train_loss       | {train_loss:<8.4f} |")
+    print(f"|    val_loss         | {val_loss:<8.4f} |")
+    print(f"|    val_miou         | {val_miou:<8.4f} |")
+    print("----------------------------------")
 
 
 if __name__ == "__main__":
