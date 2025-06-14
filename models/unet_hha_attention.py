@@ -139,15 +139,20 @@ class CrossAttentionFusion(nn.Module):
 
         # Add a residual connection to help with gradient flow
         self.residual_proj = nn.Conv2d(in_channels, in_channels, 1)
-        self.attention_weight = nn.Parameter(torch.tensor(0.5))
 
-    def cross_attention(self, q, k, v, pool_hw=32):
+    def cross_attention(self, q, k, v):
         B, C, H, W = q.shape
 
+        if H * W > 10000:
+            pool_h = max(H//8, 64)
+            pool_w = max(W//8, 64)
+        else:
+            pool_h, pool_w = H, W 
+
         # Reduce spatial size to fixed value to avoid huge attention maps
-        q = F.adaptive_avg_pool2d(q, (pool_hw, pool_hw))
-        k = F.adaptive_avg_pool2d(k, (pool_hw, pool_hw))
-        v = F.adaptive_avg_pool2d(v, (pool_hw, pool_hw))
+        q = F.adaptive_avg_pool2d(q, (pool_h, pool_w))
+        k = F.adaptive_avg_pool2d(k, (pool_h, pool_w))
+        v = F.adaptive_avg_pool2d(v, (pool_h, pool_w))
 
         q = q.view(B, C, -1).transpose(1, 2)  # (B, HW, C)
         k = k.view(B, C, -1)                  # (B, C, HW)
@@ -155,7 +160,7 @@ class CrossAttentionFusion(nn.Module):
 
         attn_scores = torch.bmm(q, k) / math.sqrt(C)
         attn = F.softmax(attn_scores, dim=-1)
-        out = torch.bmm(attn, v).transpose(1, 2).view(B, C, pool_hw, pool_hw)
+        out = torch.bmm(attn, v).transpose(1, 2).view(B, C, pool_h, pool_w)
 
         # Upsample back to original resolution
         return F.interpolate(out, size=(H, W), mode='bilinear', align_corners=False)
@@ -180,10 +185,9 @@ class CrossAttentionFusion(nn.Module):
         # across the network, especially in deeper layers.
         # Adding residual connection to help with gradient flow.
         residual = self.residual_proj(rgb_feat + hha_feat)
-        output = self.attention_weight * attention_output + residual
+        output = attention_output + residual
 
         return self.norm(output)
-
 
 def get_unet_hha_attention(
     num_classes,
