@@ -120,7 +120,7 @@ class UnetAttentionHHA(nn.Module):
 class CrossAttentionFusion(nn.Module):
     def __init__(self, in_channels, reduction_ratio=8):
         super().__init__()
-        self.reduced_dim = max(in_channels // reduction_ratio, 24)
+        self.reduced_dim = max(in_channels // reduction_ratio, 16)
 
         # RGB attends to HHA
         self.rgb_to_q = nn.Conv2d(in_channels, self.reduced_dim, 1)
@@ -139,10 +139,15 @@ class CrossAttentionFusion(nn.Module):
 
         # Add a residual connection to help with gradient flow
         self.residual_proj = nn.Conv2d(in_channels, in_channels, 1)
-        self.attention_weight = nn.Parameter(torch.ones(0.1))
+        self.attention_weight = nn.Parameter(torch.tensor(0.1))
 
-    def cross_attention(self, q, k, v):
+    def cross_attention(self, q, k, v, pool_hw=32):
         B, C, H, W = q.shape
+
+        # Reduce spatial size to fixed value to avoid huge attention maps
+        q = F.adaptive_avg_pool2d(q, (pool_hw, pool_hw))
+        k = F.adaptive_avg_pool2d(k, (pool_hw, pool_hw))
+        v = F.adaptive_avg_pool2d(v, (pool_hw, pool_hw))
 
         q = q.view(B, C, -1).transpose(1, 2)  # (B, HW, C)
         k = k.view(B, C, -1)                  # (B, C, HW)
@@ -150,7 +155,10 @@ class CrossAttentionFusion(nn.Module):
 
         attn_scores = torch.bmm(q, k) / math.sqrt(C)
         attn = F.softmax(attn_scores, dim=-1)
-        return torch.bmm(attn, v).transpose(1, 2).view(B, C, H, W)
+        out = torch.bmm(attn, v).transpose(1, 2).view(B, C, pool_hw, pool_hw)
+
+        # Upsample back to original resolution
+        return F.interpolate(out, size=(H, W), mode='bilinear', align_corners=False)
 
     def forward(self, rgb_feat, hha_feat):
         # RGB attends to HHA
