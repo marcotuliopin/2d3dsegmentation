@@ -137,6 +137,10 @@ class CrossAttentionFusion(nn.Module):
         self.output_proj = nn.Conv2d(self.reduced_dim * 2, in_channels, 1)
         self.norm = nn.BatchNorm2d(in_channels)
 
+        # Add a residual connection to help with gradient flow
+        self.residual_proj = nn.Conv2d(in_channels, in_channels, 1)
+        self.attention_weight = nn.Parameter(torch.ones(0.1))
+
     def cross_attention(self, q, k, v):
         B, C, H, W = q.shape
 
@@ -162,14 +166,15 @@ class CrossAttentionFusion(nn.Module):
         hha_att = self.cross_attention(q2, k2, v2)
 
         fused = torch.cat([rgb_att, hha_att], dim=1)
+        attention_output = self.output_proj(fused)
 
         # Without residual connection, gradients may not propagate well
         # across the network, especially in deeper layers.
         # Adding residual connection to help with gradient flow.
-        residual = rgb_feat + hha_feat
-        output = self.output_proj(fused)
+        residual = self.residual_proj(rgb_feat) # Using only RGB feature for residual to avoid issues with modal fusion
+        output = self.attention_weight * attention_output + residual
 
-        return self.norm(output + residual)  # Add residual connection and normalize
+        return self.norm(output)
 
 
 def get_unet_hha_attention(
