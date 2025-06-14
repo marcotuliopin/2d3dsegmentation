@@ -36,6 +36,9 @@ class UnetDualEncoderHHA(nn.Module):
             nn.BatchNorm2d(ch) for ch in self.hha_encoder.out_channels
         ])
 
+        # Balance weights for the attention output. Adjust the balance between RGB and HHA features.
+        self.balance_weights = nn.Parameter(torch.tensor(0.5))
+
         # Double of channels since we concatenate RGB and Depth features
         self.encoder_channels = [
             r + h for r, h in zip(
@@ -63,9 +66,10 @@ class UnetDualEncoderHHA(nn.Module):
         # Fusion of features using concatenation
         rgb_feats_norm = [norm(feat) for feat, norm in zip(rgb_feats, self.rgb_norms)]
         hha_feats_norm = [norm(feat) for feat, norm in zip(hha_feats, self.hha_norms)]
-        feats = [torch.cat([r, h], dim=1) for r, h in zip(rgb_feats_norm, hha_feats_norm)]
+        alpha = torch.sigmoid(self.balance_weights[0]) # Adjust the balance between RGB and HHA features
+        fused = torch.cat([alpha * rgb_feats_norm, (1 - alpha) * hha_feats_norm], dim=1)
 
-        decoder_output = self.decoder(feats)
+        decoder_output = self.decoder(fused)
         dropout_output = self.dropout(decoder_output) 
         return self.segmentation_head(dropout_output)
     

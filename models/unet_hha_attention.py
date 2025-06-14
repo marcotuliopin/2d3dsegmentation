@@ -137,6 +137,9 @@ class CrossAttentionFusion(nn.Module):
         self.output_proj = nn.Conv2d(self.reduced_dim * 2, in_channels, 1)
         self.norm = nn.BatchNorm2d(in_channels)
 
+        # Balance weights for the attention output. Adjust the balance between RGB and HHA features.
+        self.balance_weights = nn.Parameter(torch.tensor(0.5))
+
         # Add a residual connection to help with gradient flow
         self.residual_proj = nn.Conv2d(in_channels, in_channels, 1)
         self.attention_weight = nn.Parameter(torch.tensor(0.1))
@@ -173,7 +176,8 @@ class CrossAttentionFusion(nn.Module):
         v2 = self.rgb_to_v(rgb_feat)
         hha_att = self.cross_attention(q2, k2, v2)
 
-        fused = torch.cat([rgb_att, hha_att], dim=1)
+        alpha = torch.sigmoid(self.balance_weights[0]) # Adjust the balance between RGB and HHA features
+        fused = torch.cat([alpha * rgb_att, (1 - alpha) * hha_att], dim=1)
         attention_output = self.output_proj(fused)
 
         # Without residual connection, gradients may not propagate well
