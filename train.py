@@ -268,7 +268,7 @@ def print_log(
     print(f"experiment: {experiment_name:<30}")
     print("----------------------------------")
     print(f"| time/               |          |")
-    print(f"|    epochs           | {epoch:<8} |")
+    print(f"|    epochs           | {epoch + 1:<8} |")
     print(f"|    time_elapsed     | {time_elapsed:<8.1f} |")
     print(f"| train/              |          |")
     print(f"|    learning_rate    | {learning_rate:<8.6f} |")
