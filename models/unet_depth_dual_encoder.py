@@ -28,6 +28,14 @@ class UnetDualEncoderD(nn.Module):
         if pretrained:
             self._adapt_input_channels()
 
+        # Batch normalization for each encoder output
+        self.rgb_norms = nn.ModuleList([
+            nn.BatchNorm2d(ch) for ch in self.rgb_encoder.out_channels
+        ])
+        self.d_norms = nn.ModuleList([
+            nn.BatchNorm2d(ch) for ch in self.d_encoder.out_channels
+        ])
+
         # Double of channels since we concatenate RGB and Depth features
         self.encoder_channels = [
             r + d for r, d in zip(
@@ -53,8 +61,8 @@ class UnetDualEncoderD(nn.Module):
         d_feats = self.d_encoder(depth)
 
         # Fusion of features using concatenation
-        rgb_feats_norm = [F.normalize(feat, p=2, dim=1) for feat in rgb_feats]
-        d_feats_norm = [F.normalize(feat, p=2, dim=1) for feat in d_feats]
+        rgb_feats_norm = [norm(feat) for feat, norm in zip(rgb_feats, self.rgb_norms)]
+        d_feats_norm = [norm(feat) for feat, norm in zip(d_feats, self.d_norms)]
         feats = [torch.cat([r, d], dim=1) for r, d in zip(rgb_feats_norm, d_feats_norm)]
 
         decoder_output = self.decoder(feats)
