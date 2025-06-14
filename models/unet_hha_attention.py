@@ -120,7 +120,7 @@ class UnetAttentionHHA(nn.Module):
 class CrossAttentionFusion(nn.Module):
     def __init__(self, in_channels, reduction_ratio=8):
         super().__init__()
-        self.reduced_dim = max(in_channels // reduction_ratio, 16)
+        self.reduced_dim = max(in_channels // reduction_ratio, 24)
 
         # RGB attends to HHA
         self.rgb_to_q = nn.Conv2d(in_channels, self.reduced_dim, 1)
@@ -137,13 +137,8 @@ class CrossAttentionFusion(nn.Module):
         self.output_proj = nn.Conv2d(self.reduced_dim * 2, in_channels, 1)
         self.norm = nn.BatchNorm2d(in_channels)
 
-    def cross_attention(self, q, k, v, pool_hw=8):
+    def cross_attention(self, q, k, v):
         B, C, H, W = q.shape
-
-        # Reduce spatial size to fixed value to avoid huge attention maps
-        q = F.adaptive_avg_pool2d(q, (pool_hw, pool_hw))
-        k = F.adaptive_avg_pool2d(k, (pool_hw, pool_hw))
-        v = F.adaptive_avg_pool2d(v, (pool_hw, pool_hw))
 
         q = q.view(B, C, -1).transpose(1, 2)  # (B, HW, C)
         k = k.view(B, C, -1)                  # (B, C, HW)
@@ -151,28 +146,30 @@ class CrossAttentionFusion(nn.Module):
 
         attn_scores = torch.bmm(q, k) / math.sqrt(C)
         attn = F.softmax(attn_scores, dim=-1)
-        out = torch.bmm(attn, v).transpose(1, 2).view(B, C, pool_hw, pool_hw)
-
-        # Upsample back to original resolution
-        return F.interpolate(out, size=(H, W), mode='bilinear', align_corners=False)
+        return torch.bmm(attn, v).transpose(1, 2).view(B, C, H, W)
 
     def forward(self, rgb_feat, hha_feat):
         # RGB attends to HHA
         q1 = self.rgb_to_q(rgb_feat)
         k1 = self.hha_to_k(hha_feat)
         v1 = self.hha_to_v(hha_feat)
-        rgb_att = self.cross_attention(q1, k1, v1, pool_hw=8)
+        rgb_att = self.cross_attention(q1, k1, v1)
 
         # HHA attends to RGB
         q2 = self.hha_to_q(hha_feat)
         k2 = self.rgb_to_k(rgb_feat)
         v2 = self.rgb_to_v(rgb_feat)
-        hha_att = self.cross_attention(q2, k2, v2, pool_hw=8)
+        hha_att = self.cross_attention(q2, k2, v2)
 
         fused = torch.cat([rgb_att, hha_att], dim=1)
 
+        # Without residual connection, gradients may not propagate well
+        # across the network, especially in deeper layers.
+        # Adding residual connection to help with gradient flow.
+        residual = rgb_feat + hha_feat
         output = self.output_proj(fused)
-        return self.norm(output)
+
+        return self.norm(output + residual)  # Add residual connection and normalize
 
 
 def get_unet_hha_attention(
