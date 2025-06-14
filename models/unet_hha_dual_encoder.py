@@ -66,7 +66,7 @@ class UnetDualEncoderHHA(nn.Module):
         # Fusion of features using concatenation
         rgb_feats_norm = [norm(feat) for feat, norm in zip(rgb_feats, self.rgb_norms)]
         hha_feats_norm = [norm(feat) for feat, norm in zip(hha_feats, self.hha_norms)]
-        alpha = torch.sigmoid(self.balance_weights[0]) # Adjust the balance between RGB and HHA features
+        alpha = torch.sigmoid(self.balance_weights) # Adjust the balance between RGB and HHA features
         fused = torch.cat([alpha * rgb_feats_norm, (1 - alpha) * hha_feats_norm], dim=1)
 
         decoder_output = self.decoder(fused)
