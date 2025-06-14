@@ -11,23 +11,6 @@ data:
   unlabeled_id: 255
 
 model:
-  deeplabv3_resnet101:
-    name: deeplabv3_resnet101
-    rgb_only: true
-    backbone: resnet101
-    output_stride: 16
-    dropout: 0.3
-  deeplabv3_resnet50:
-    name: deeplabv3_resnet50
-    rgb_only: true
-    backbone: resnet50
-    output_stride: 16
-    dropout: 0.3
-  fcn_resnet101:
-    name: fcn_resnet101
-    rgb_only: true
-    backbone: resnet101
-    dropout: 0.3
   fcn_resnet50:
     name: fcn_resnet50
     rgb_only: true
@@ -93,8 +76,8 @@ output:
 
 train:
   seed: 42
-  batch_size: 4
-  epochs: 70
+  batch_size: 8
+  epochs: 100
   num_workers: 4
 
   early_stopping:
