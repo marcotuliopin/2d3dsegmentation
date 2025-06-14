@@ -176,6 +176,7 @@ def main(args, config):
             val_miou=val_miou,
             learning_rate=scheduler.get_last_lr()[0],
             time_elapsed=time() - start_time,
+            non_improved_epochs=non_improved_epochs,
         )
 
     print(f"Training complete. Results saved in {exp_dir}")
@@ -263,7 +264,8 @@ def print_log(
     val_loss,
     val_miou,
     learning_rate,
-    time_elapsed
+    time_elapsed,
+    non_improved_epochs,
 ):
     print("----------------------------------")
     print(f"| experiment: {experiment_name:<30}")
@@ -271,7 +273,9 @@ def print_log(
     print(f"|    epochs           | {epoch + 1:<8} |")
     print(f"|    time_elapsed     | {time_elapsed:<8.1f} |")
     print(f"| train/              |          |")
+    print(f"|    non_improved     | {non_improved_epochs:<8} |")
     print(f"|    learning_rate    | {learning_rate:<8.6f} |")
+    print(f"| metrics/            |          |")
     print(f"|    train_loss       | {train_loss:<8.4f} |")
     print(f"|    val_loss         | {val_loss:<8.4f} |")
     print(f"|    val_miou         | {val_miou:<8.4f} |")

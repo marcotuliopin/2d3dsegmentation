@@ -74,19 +74,19 @@ class UnetDualEncoderHHA(nn.Module):
         return self.segmentation_head(dropout_output)
     
     def get_optimizer_groups(self):
-        first_layer_rgb = list(self.rgb_encoder.conv1.parameters())
-        first_layer_hha = list(self.hha_encoder.conv1.parameters())
-
         rgb_encoder = [p for name, p in self.rgb_encoder.named_parameters() if "conv1" not in name]
         hha_encoder = [p for name, p in self.hha_encoder.named_parameters() if "conv1" not in name]
 
         decoder = list(self.decoder.parameters()) + list(self.segmentation_head.parameters())
 
         return [
-            {"params": first_layer_rgb, "lr": 5e-4},
-            {"params": first_layer_hha, "lr": 5e-3},
+            {"params": self.rgb_encoder.conv1.parameters(), "lr": 5e-4},
+            {"params": self.hha_encoder.conv1.parameters(), "lr": 5e-3},
             {"params": rgb_encoder, "lr": 1e-4},
             {"params": hha_encoder, "lr": 1e-3},
+            {"params": self.balance_weights, "lr": 1e-3},
+            {"params": self.rgb_norms.parameters(), "lr": 1e-3},
+            {"params": self.hha_norms.parameters(), "lr": 1e-3},
             {"params": decoder, "lr": 1e-2},
         ]
     
