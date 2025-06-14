@@ -2,9 +2,6 @@ import os
 import torch
 import torch.nn as nn
 
-from models.deeplabv3_resnet101 import get_deeplabv3_resnet101
-from models.deeplabv3_resnet50 import get_deeplabv3_resnet50
-from models.fcn_resnet101 import get_fcn_resnet101
 from models.fcn_resnet50 import get_fcn_resnet50
 from models.unet import get_unet
 from models.unet_depth_concatenate import get_unet_depth_concatenate
@@ -24,9 +21,6 @@ nyuv2_weights = [0.11756749, 0.58930845, 3.86320268, 1.42978694, 0.61211152,
 def get_model(name, **kwargs):
     models = {
         "fcn_resnet50": get_fcn_resnet50,
-        "deeplabv3_resnet50": get_deeplabv3_resnet50,
-        "fcn_resnet101": get_fcn_resnet101,
-        "deeplabv3_resnet101": get_deeplabv3_resnet101,
         "unet": get_unet,
         "unet_depth_concatenate": get_unet_depth_concatenate,
         "unet_hha_concatenate": get_unet_hha_concatenate,
