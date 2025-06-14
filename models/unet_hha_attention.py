@@ -176,7 +176,7 @@ class CrossAttentionFusion(nn.Module):
         v2 = self.rgb_to_v(rgb_feat)
         hha_att = self.cross_attention(q2, k2, v2)
 
-        alpha = torch.sigmoid(self.balance_weights[0]) # Adjust the balance between RGB and HHA features
+        alpha = torch.sigmoid(self.balance_weights) # Adjust the balance between RGB and HHA features
         fused = torch.cat([alpha * rgb_att, (1 - alpha) * hha_att], dim=1)
         attention_output = self.output_proj(fused)
 
