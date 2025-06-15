@@ -1,4 +1,3 @@
-import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -7,51 +6,37 @@ from segmentation_models_pytorch.decoders.unet.decoder import UnetDecoder
 
 
 class UnetAttentionHHA(nn.Module):
-    def __init__(self, num_classes, encoder="resnet50", dropout=0.3, pretrained=True, attention_reduction_ratio=8):
+    def __init__(self, num_classes, encoder="resnet50", dropout=0.3, pretrained=True):
         super().__init__()
 
         rgb_weights = "imagenet" if pretrained else None
 
-        # Encoder RGB
-        self.rgb_encoder = get_encoder(
-            name=encoder,
-            in_channels=3,
-            weights=rgb_weights
-        )
-
-        # Encoder HHA
-        self.hha_encoder = get_encoder(
-            name=encoder,
-            in_channels=3,
-            weights=None
-        )
+        self.rgb_encoder = get_encoder(name=encoder, in_channels=3, weights=rgb_weights, dropout=dropout)
+        self.hha_encoder = get_encoder(name=encoder, in_channels=3, weights=None, dropout=dropout)
 
         if pretrained:
             self._adapt_input_channels()
-
-        # Batch normalization for each encoder output
-        self.rgb_norms = nn.ModuleList([
-            nn.BatchNorm2d(ch) for ch in self.rgb_encoder.out_channels
-        ])
-        self.hha_norms = nn.ModuleList([
-            nn.BatchNorm2d(ch) for ch in self.hha_encoder.out_channels
-        ])
         
-        # One attention module for every layer of the encoder
-        self.fusion = nn.ModuleList([
-            CrossAttentionFusion(in_channels=ch, reduction_ratio=attention_reduction_ratio) 
-            for ch in self.rgb_encoder.out_channels
-        ]) 
+        # Batch normalization for each encoder output
+        self.rgb_norms = nn.ModuleList([nn.BatchNorm2d(ch) for ch in self.rgb_encoder.out_channels])
+        self.hha_norms = nn.ModuleList([nn.BatchNorm2d(ch) for ch in self.hha_encoder.out_channels])
 
-        self.encoder_channels = self.rgb_encoder.out_channels
+        self.fuse = nn.ModuleList([FRM(in_channels=ch, reduction_ratio=8, dropout=dropout) for ch in self.rgb_encoder.out_channels])
 
+        # Double of channels since we concatenate RGB and Depth features
+        self.encoder_channels = [
+            r + h for r, h in zip(
+                self.rgb_encoder.out_channels,
+                self.hha_encoder.out_channels
+            )
+        ]
         self.decoder = UnetDecoder(
             encoder_channels=self.encoder_channels, # Skip connections
-            decoder_channels=(256, 128, 64, 32, 16),
+            decoder_channels=(512, 256, 128, 64, 32),
             n_blocks=5,
         )
 
-        self.segmentation_head = nn.Conv2d(16, num_classes, kernel_size=1)
+        self.segmentation_head = nn.Conv2d(32, num_classes, kernel_size=1)
         self.dropout = nn.Dropout2d(p=dropout)
 
     def forward(self, x):
@@ -61,38 +46,30 @@ class UnetAttentionHHA(nn.Module):
         rgb_feats = self.rgb_encoder(rgb)
         hha_feats = self.hha_encoder(hha)
 
+        # Fusion of features using concatenation
         rgb_feats_norm = [norm(feat) for feat, norm in zip(rgb_feats, self.rgb_norms)]
         hha_feats_norm = [norm(feat) for feat, norm in zip(hha_feats, self.hha_norms)]
+        fused = [self.fuse[i](rgb_feats_norm[i], hha_feats_norm[i]) for i in range(len(rgb_feats_norm))]
 
-        # Fusion of features using concatenation
-        fused_feats = []
-        for rgb_feat, hha_feat, fusion in zip(rgb_feats_norm, hha_feats_norm, self.fusion):
-            fused = fusion(rgb_feat, hha_feat)
-            fused_feats.append(fused)
-        
-        decoder_output = self.decoder(fused_feats)
-        dropout_output = self.dropout(decoder_output)
+        decoder_output = self.decoder(fused)
+        dropout_output = self.dropout(decoder_output) 
         return self.segmentation_head(dropout_output)
-
     
     def get_optimizer_groups(self):
-        first_layer_rgb = list(self.rgb_encoder.conv1.parameters())
-        first_layer_hha = list(self.hha_encoder.conv1.parameters())
-
-        rgb_encoder = list(p for name, p in self.rgb_encoder.named_parameters() if "conv1" not in name)
-        hha_encoder = list(p for name, p in self.hha_encoder.named_parameters() if "conv1" not in name)
-
-        attention_params = list(self.fusion.parameters())
+        rgb_encoder = [p for name, p in self.rgb_encoder.named_parameters() if "conv1" not in name]
+        hha_encoder = [p for name, p in self.hha_encoder.named_parameters() if "conv1" not in name]
 
         decoder = list(self.decoder.parameters()) + list(self.segmentation_head.parameters())
 
         return [
-            {"params": first_layer_rgb, "lr": 5e-4},
-            {"params": first_layer_hha, "lr": 5e-3},
+            {"params": self.rgb_encoder.conv1.parameters(), "lr": 5e-4},
+            {"params": self.hha_encoder.conv1.parameters(), "lr": 5e-4},
             {"params": rgb_encoder, "lr": 1e-4},
-            {"params": hha_encoder, "lr": 1e-3},
-            {"params": attention_params, "lr": 1e-3},
-            {"params": decoder, "lr": 1e-2},
+            {"params": hha_encoder, "lr": 5e-4},
+            {"params": self.rgb_norms.parameters(), "lr": 1e-4},
+            {"params": self.hha_norms.parameters(), "lr": 1e-4},
+            {"params": self.fuse.parameters(), "lr": 5e-4},
+            {"params": decoder, "lr": 1e-3},
         ]
     
     def _adapt_input_channels(self):
@@ -117,90 +94,83 @@ class UnetAttentionHHA(nn.Module):
         self.hha_encoder.conv1 = new_conv_hha
 
 
-class CrossAttentionFusion(nn.Module):
+class SAM(nn.Module):
+    """Spatial Attention Module (SAM) for enhancing feature maps with spatial attention.
+    """
+    def __init__(self, bias=False):
+        super(SAM, self).__init__()
+        self.bias = bias
+        self.conv = nn.Conv2d(in_channels=2, out_channels=1, kernel_size=7, stride=1, padding=3, dilation=1, bias=self.bias)
+
+    def forward(self, x):
+        max = torch.max(x,1)[0].unsqueeze(1)
+        avg = torch.mean(x,1).unsqueeze(1)
+        concat = torch.cat((max,avg), dim=1)
+        output = self.conv(concat)
+        output = F.sigmoid(output) * x 
+        return output 
+
+
+class CAM(nn.Module):
+    """
+    Channel Attention module (CAM) for cross-attention between RGB and HHA features.
+    """
     def __init__(self, in_channels, reduction_ratio=8):
         super().__init__()
-        self.reduced_dim = max(in_channels // reduction_ratio, 16)
+        self.reduced_dim = in_channels // reduction_ratio
+        self.global_pool = nn.AdaptiveAvgPool2d(1)
+        self.max_pool = nn.AdaptiveMaxPool2d(1)
+        self.mlp = nn.Sequential(
+            nn.Linear(in_channels, self.reduced_dim),
+            nn.ReLU(inplace=True),
+            nn.Linear(self.reduced_dim, in_channels),
+        )
+        self.sigmoid = nn.Sigmoid()
 
-        # RGB attends to HHA
-        self.rgb_to_q = nn.Conv2d(in_channels, self.reduced_dim, 1)
-        self.hha_to_k = nn.Conv2d(in_channels, self.reduced_dim, 1)
-        self.hha_to_v = nn.Conv2d(in_channels, self.reduced_dim, 1)
+    def forward(self, q, k):
+        B, C, _, _ = k.shape
+        q_max = self.max_pool(q).view(B, C)
+        q_avg = self.global_pool(q).view(B, C)
+        lin_max = self.mlp(q_max).view(B, C, 1, 1)  
+        lin_avg = self.mlp(q_avg).view(B, C, 1, 1)
+        channel_weights = lin_max + lin_avg
+        return k * self.sigmoid(channel_weights)
 
-        # Reverse attention (HHA → RGB)
-        self.hha_to_q = nn.Conv2d(in_channels, self.reduced_dim, 1)
-        self.rgb_to_k = nn.Conv2d(in_channels, self.reduced_dim, 1)
-        self.rgb_to_v = nn.Conv2d(in_channels, self.reduced_dim, 1)
 
-        # We are currently using concatenation as the fusion method
-        # TODO: Explore more fusion methods like sum or gated
-        self.output_proj = nn.Conv2d(self.reduced_dim * 2, in_channels, 1)
-        self.norm = nn.BatchNorm2d(in_channels)
+class CBAM(nn.Module):
+    """
+    Convolutional Block Attention Module (CBAM) for cross-attention between RGB and HHA features.
+    """
+    def __init__(self, in_channels, reduction_ratio=8):
+        super().__init__()
+        self.channel_attention = CAM(in_channels, reduction_ratio)
+        self.spatial_attention = SAM()
 
-        # Add a residual connection to help with gradient flow
-        self.residual_proj = nn.Conv2d(in_channels, in_channels, 1)
+    def forward(self, x):
+        y = self.channel_attention(x, x)
+        y = self.spatial_attention(y)
+        return y
 
-    def cross_attention(self, q, k, v):
-        B, C, H, W = q.shape
 
-        if H * W > 10000:
-            pool_h = max(H//8, 64)
-            pool_w = max(W//8, 64)
-        else:
-            pool_h, pool_w = H, W 
-
-        # Reduce spatial size to fixed value to avoid huge attention maps
-        q = F.adaptive_avg_pool2d(q, (pool_h, pool_w))
-        k = F.adaptive_avg_pool2d(k, (pool_h, pool_w))
-        v = F.adaptive_avg_pool2d(v, (pool_h, pool_w))
-
-        q = q.view(B, C, -1).transpose(1, 2)  # (B, HW, C)
-        k = k.view(B, C, -1)                  # (B, C, HW)
-        v = v.view(B, C, -1).transpose(1, 2)  # (B, HW, C)
-
-        attn_scores = torch.bmm(q, k) / math.sqrt(C)
-        attn = F.softmax(attn_scores, dim=-1)
-        out = torch.bmm(attn, v).transpose(1, 2).view(B, C, pool_h, pool_w)
-
-        # Upsample back to original resolution
-        return F.interpolate(out, size=(H, W), mode='bilinear', align_corners=False)
+class FRM(nn.Module):
+    """
+    Fusion Refinement Module (FRM) for cross-attention between RGB and HHA features.
+    """
+    def __init__(self, in_channels, reduction_ratio=8, dropout=0.3):
+        super().__init__()
+        self.rgb_att = CBAM(in_channels, reduction_ratio)
+        self.hha_att = CBAM(in_channels, reduction_ratio)
+        self.rgb_hha_att = CAM(in_channels, reduction_ratio)
+        self.hha_rgb_att = CAM(in_channels, reduction_ratio)
+        self.dropout = nn.Dropout2d(p=dropout)
 
     def forward(self, rgb_feat, hha_feat):
-        # RGB attends to HHA
-        q1 = self.rgb_to_q(rgb_feat)
-        k1 = self.hha_to_k(hha_feat)
-        v1 = self.hha_to_v(hha_feat)
-        rgb_att = self.cross_attention(q1, k1, v1)
+        rgb_ref = self.rgb_att(rgb_feat)
+        hha_ref = self.hha_att(hha_feat)
+        output = torch.cat([rgb_ref, hha_ref], dim=1)
+        return self.dropout(output)
 
-        # HHA attends to RGB
-        q2 = self.hha_to_q(hha_feat)
-        k2 = self.rgb_to_k(rgb_feat)
-        v2 = self.rgb_to_v(rgb_feat)
-        hha_att = self.cross_attention(q2, k2, v2)
 
-        fused = torch.cat([rgb_att, hha_att], dim=1)
-        attention_output = self.output_proj(fused)
-
-        # Without residual connection, gradients may not propagate well
-        # across the network, especially in deeper layers.
-        # Adding residual connection to help with gradient flow.
-        residual = self.residual_proj(rgb_feat + hha_feat)
-        output = attention_output + residual
-
-        return self.norm(output)
-
-def get_unet_hha_attention(
-    num_classes,
-    dropout=0.3,
-    pretrained=True,
-    encoder="resnet50",
-    attention_reduction_ratio=8,
-):
-    print(f"Using Unet with {encoder}. Using cross-atention to fuse RGB and HHA.")
-    return UnetAttentionHHA(
-        num_classes=num_classes,
-        dropout=dropout,
-        pretrained=pretrained,
-        encoder=encoder,
-        attention_reduction_ratio=attention_reduction_ratio,
-    )
+def get_unet_hha_attention(num_classes, dropout=0.3, pretrained=True, encoder="resnet50"):
+    print(f"Using Unet with {encoder}. Using attention in RGB and HHA inputs.")
+    return UnetAttentionHHA(num_classes=num_classes, dropout=dropout, pretrained=pretrained, encoder=encoder)
