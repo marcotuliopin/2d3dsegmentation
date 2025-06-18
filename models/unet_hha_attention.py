@@ -63,13 +63,13 @@ class UnetAttentionHHA(nn.Module):
 
         return [
             {"params": self.rgb_encoder.conv1.parameters(), "lr": 5e-4},
-            {"params": self.hha_encoder.conv1.parameters(), "lr": 5e-4},
+            {"params": self.hha_encoder.conv1.parameters(), "lr": 5e-3},
             {"params": rgb_encoder, "lr": 1e-4},
-            {"params": hha_encoder, "lr": 5e-4},
-            {"params": self.rgb_norms.parameters(), "lr": 1e-4},
-            {"params": self.hha_norms.parameters(), "lr": 1e-4},
-            {"params": self.fuse.parameters(), "lr": 5e-4},
-            {"params": decoder, "lr": 1e-3},
+            {"params": hha_encoder, "lr": 1e-3},
+            {"params": self.rgb_norms.parameters(), "lr": 1e-3},
+            {"params": self.hha_norms.parameters(), "lr": 1e-3},
+            {"params": self.fuse.parameters(), "lr": 1e-3},
+            {"params": decoder, "lr": 1e-2},
         ]
     
     def _adapt_input_channels(self):
@@ -167,10 +167,13 @@ class FRM(nn.Module):
     def forward(self, rgb_feat, hha_feat):
         rgb_ref = self.rgb_att(rgb_feat)
         hha_ref = self.hha_att(hha_feat)
-        output = torch.cat([rgb_ref, hha_ref], dim=1)
+        return torch.cat([rgb_ref, hha_ref], dim=1)
+        rgb_to_hha = self.rgb_hha_att(rgb_ref, hha_ref)
+        hha_to_rgb = self.hha_rgb_att(hha_ref, rgb_ref)
+        output = torch.cat([rgb_to_hha, hha_to_rgb], dim=1)
         return self.dropout(output)
 
 
 def get_unet_hha_attention(num_classes, dropout=0.3, pretrained=True, encoder="resnet50"):
-    print(f"Using Unet with {encoder}. Using attention in RGB and HHA inputs.")
+    print(f"Using Unet with {encoder}. Using dual encoders for RGB and HHA inputs.")
     return UnetAttentionHHA(num_classes=num_classes, dropout=dropout, pretrained=pretrained, encoder=encoder)
