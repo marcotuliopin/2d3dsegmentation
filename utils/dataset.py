@@ -2,7 +2,6 @@ import os
 import h5py
 import torch
 import shutil
-import random
 import tarfile
 import zipfile
 import requests
@@ -11,7 +10,6 @@ from matplotlib import pyplot as plt
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision.datasets.utils import download_url
-from torchvision import transforms
 
 """
 author: Mihai Suteu
@@ -51,6 +49,7 @@ class NYUv2(Dataset):
         sn_transform=None,
         depth_transform=None,
         hha_transform=None,
+        sync_transform=None,
     ):
         """
         Will return tuples based on what data source has been enabled (rgb, seg etc).
@@ -67,6 +66,7 @@ class NYUv2(Dataset):
         transformation ends in a tensor, the result will be automatically converted
         to meters
         :param hha_transform: the transformation pipeline for HHA images
+        :param sync_transform: a transformation that will be applied to all images
         """
         super().__init__()
         self.root = root
@@ -77,6 +77,7 @@ class NYUv2(Dataset):
         self.sn_transform = sn_transform
         self.depth_transform = depth_transform
         self.hha_transform = hha_transform
+        self.sync_transform = sync_transform
 
         self.train = train
         self._split = "train" if train else "test"
@@ -94,48 +95,50 @@ class NYUv2(Dataset):
         folder = lambda name: os.path.join(self.root, f"{self._split}_{name}")
         imgs = []
 
-        flip = random.random() < 0.5
-
         if self.rgb_transform is not None:
             img = Image.open(os.path.join(folder("rgb"), self._files[index]))
-            if flip: img = transforms.functional.hflip(img)
-            img = self.rgb_transform(img)
             imgs.append(img)
 
         if self.seg_transform is not None:
             img = Image.open(os.path.join(folder("seg13"), self._files[index]))
-            if flip: img = transforms.functional.hflip(img)
-            img = self.seg_transform(img)
-            if isinstance(img, torch.Tensor):
-                # ToTensor scales to [0, 1] by default
-                img = (img * 255).long()
-                img = img.squeeze()
-            imgs.append(img)
-
-        if self.sn_transform is not None:
-            img = Image.open(os.path.join(folder("sn"), self._files[index]))
-            if flip: img = transforms.functional.hflip(img)
-            img = self.sn_transform(img)
             imgs.append(img)
 
         if self.depth_transform is not None:
             img = Image.open(os.path.join(folder("depth"), self._files[index]))
-            if flip: img = transforms.functional.hflip(img)
-            img = self.depth_transform(img)
             imgs.append(img)
         
         if self.hha_transform is not None:
             file_index = self._files[index].split('.')[0]  
             hha_filename = f"{file_index}_hha.png"
             img = Image.open(os.path.join(folder("hha"), hha_filename))
-            if flip: img = transforms.functional.hflip(img)
-            img = self.hha_transform(img)
             imgs.append(img)
+        
+        imgs = self._augment(imgs) 
 
         return imgs
 
     def __len__(self):
         return len(self._files)
+    
+    def _augment(self, imgs):
+        if self.sync_transform is not None:
+            if self.depth_transform is not None:
+                imgs = self.sync_transform(imgs[0], imgs[1], imgs[2])
+            elif self.hha_transform is not None:
+                imgs = self.sync_transform(imgs[0], imgs[1], None, imgs[2])
+            else:
+                imgs = self.sync_transform(imgs[0], imgs[1])
+
+        if self.rgb_transform is not None:
+            imgs[0] = self.rgb_transform(imgs[0])
+        if self.seg_transform is not None:
+            imgs[1] = self.seg_transform(imgs[1])
+        if self.depth_transform is not None:
+            imgs[2] = self.depth_transform(imgs[2])
+        if self.hha_transform is not None:
+            imgs[2] = self.hha_transform(imgs[2])
+
+        return imgs
 
     def __repr__(self):
         fmt_str = f"Dataset {self.__class__.__name__}\n"

@@ -5,6 +5,8 @@ from copy import copy
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from utils.dataset import NYUv2
+import torchvision.transforms as T
+import torchvision.transforms.functional as TF
 
 data_root = "data/nyuv2"
 
@@ -57,6 +59,7 @@ def nyuv2_dataloader(
     depth_xform = train_depth_transform(*image_size) if train else test_depth_transform(*image_size)
     depth_xform = None
     hha_xform = None
+    sync_transform = SyncTransform(*image_size) if train else None
 
     if not rgb_only:
         if use_hha:
@@ -73,6 +76,7 @@ def nyuv2_dataloader(
         seg_transform=seg_xform,
         depth_transform=depth_xform,
         hha_transform=hha_xform,
+        sync_transform=sync_transform,
     )
 
     if split_val and train:
@@ -81,8 +85,13 @@ def nyuv2_dataloader(
         train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size], generator=generator)
         val_dataset.dataset = copy(dataset)
 
-        # Remove augmentation from validation set
         val_dataset.dataset.rgb_transform = test_rgb_transform(*image_size)
+        val_dataset.dataset.seg_transform = test_seg_transform(*image_size)
+        if depth_xform is not None:
+            val_dataset.dataset.depth_transform = test_depth_transform(*image_size)
+        if hha_xform is not None:
+            val_dataset.dataset.hha_transform = test_hha_transform(*image_size)
+        val_dataset.dataset.sync_transform = None
 
         train_loader = DataLoader(
             train_dataset,
@@ -129,7 +138,7 @@ def train_rgb_transform(height=height0, width=width0):
     """
     return transforms.Compose(
         [
-            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.BILINEAR),
+            # transforms.Resize((height, width), interpolation=transforms.InterpolationMode.BILINEAR),
             transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
             transforms.RandomApply([transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0))], p=0.1),
             transforms.ToTensor(),
@@ -144,8 +153,9 @@ def train_seg_transform(height=height0, width=width0):
     """
     return transforms.Compose(
         [
-            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
+            # transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
             transforms.ToTensor(),
+            TensorToLongMask(),  # Convert to long type for segmentation masks
         ]
     )
 
@@ -156,45 +166,7 @@ def train_depth_transform(height=height0, width=width0):
     """
     return transforms.Compose(
         [
-            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
-            DepthToTensor(),
-            transforms.Normalize(mean=[nyuv2_depth_mean], std=[nyuv2_depth_std])
-        ]
-    )
-
-
-def test_rgb_transform(height=height0, width=width0):
-    """
-    Transformation for validation/test RGB images.
-    """
-    return transforms.Compose(
-        [
-            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.BILINEAR),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=imagenet_mean, std=imagenet_std),
-        ]
-    )
-
-
-def test_seg_transform(height=height0, width=width0):
-    """
-    Transformation for validation/test segmentation masks.
-    """
-    return transforms.Compose(
-        [
-            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
-            transforms.ToTensor(),
-        ]
-    )
-
-
-def test_depth_transform(height=height0, width=width0):
-    """
-    Transformation for validation/test depth images.
-    """
-    return transforms.Compose(
-        [
-            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
+            # transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
             DepthToTensor(),
             transforms.Normalize(mean=[nyuv2_depth_mean], std=[nyuv2_depth_std])
         ]
@@ -207,9 +179,51 @@ def train_hha_transform(height=height0, width=width0):
     """
     return transforms.Compose(
         [
-            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
+            # transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
             transforms.ToTensor(),
             transforms.Normalize(mean=nyuv2_hha_mean, std=nyuv2_hha_std),
+        ]
+    )
+
+
+def test_rgb_transform(height=height0, width=width0):
+    """
+    Transformation for validation/test RGB images.
+    """
+    return transforms.Compose(
+        [
+            # transforms.Resize((height, width), interpolation=transforms.InterpolationMode.BILINEAR),
+            transforms.CenterCrop((height, width)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=imagenet_mean, std=imagenet_std),
+        ]
+    )
+
+
+def test_seg_transform(height=height0, width=width0):
+    """
+    Transformation for validation/test segmentation masks.
+    """
+    return transforms.Compose(
+        [
+            # transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
+            transforms.CenterCrop((height, width)),
+            transforms.ToTensor(),
+            TensorToLongMask(),  # Convert to long type for segmentation masks
+        ]
+    )
+
+
+def test_depth_transform(height=height0, width=width0):
+    """
+    Transformation for validation/test depth images.
+    """
+    return transforms.Compose(
+        [
+            # transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
+            transforms.CenterCrop((height, width)),
+            DepthToTensor(),
+            transforms.Normalize(mean=[nyuv2_depth_mean], std=[nyuv2_depth_std])
         ]
     )
 
@@ -220,11 +234,66 @@ def test_hha_transform(height=height0, width=width0):
     """
     return transforms.Compose(
         [
-            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
+            # transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
+            transforms.CenterCrop((height, width)),
             transforms.ToTensor(),
             transforms.Normalize(mean=nyuv2_hha_mean, std=nyuv2_hha_std),
         ]
     )
+
+
+class SyncTransform:
+    def __init__(self, height, width):
+        self.height = height
+        self.width = width
+
+    def __call__(self, rgb_img, seg_mask, depth_img=None, hha_img=None):
+        i, j, h, w = T.RandomResizedCrop.get_params(rgb_img, scale=(0.7, 1.0), ratio=(0.75, 1.33))
+        rgb_img = TF.resized_crop(rgb_img, i, j, h, w, (self.height, self.width), T.InterpolationMode.BILINEAR)
+        seg_mask = TF.resized_crop(seg_mask, i, j, h, w, (self.height, self.width), T.InterpolationMode.NEAREST)
+        if depth_img is not None:
+            depth_img = TF.resized_crop(depth_img, i, j, h, w, (self.height, self.width), T.InterpolationMode.NEAREST)
+        if hha_img is not None:
+            hha_img = TF.resized_crop(hha_img, i, j, h, w, (self.height, self.width), T.InterpolationMode.NEAREST)
+
+
+        # 2. Aplicar RandomHorizontalFlip
+        if random.random() < 0.5:
+            rgb_img = TF.hflip(rgb_img)
+            seg_mask = TF.hflip(seg_mask)
+            if depth_img is not None:
+                depth_img = TF.hflip(depth_img)
+            if hha_img is not None:
+                hha_img = TF.hflip(hha_img)
+
+        # 3. Aplicar RandomRotation
+        angle = T.RandomRotation.get_params(degrees=[-10, 10]) # Define o range de rotação
+        rgb_img = TF.rotate(rgb_img, angle, interpolation=T.InterpolationMode.BILINEAR)
+        seg_mask = TF.rotate(seg_mask, angle, interpolation=T.InterpolationMode.NEAREST)
+        if depth_img is not None:
+            depth_img = TF.rotate(depth_img, angle, interpolation=T.InterpolationMode.NEAREST)
+        if hha_img is not None:
+            hha_img = TF.rotate(hha_img, angle, interpolation=T.InterpolationMode.NEAREST)
+        
+        imgs = [rgb_img, seg_mask]
+        if depth_img is not None:
+            imgs.append(depth_img)
+        if hha_img is not None:
+            imgs.append(hha_img)
+
+        return imgs
+
+
+class TensorToLongMask(object):
+    """
+    Custom transform to convert tensor masks to long type.
+    """
+    def __call__(self, img):
+        if isinstance(img, torch.Tensor):
+            # ToTensor scales to [0, 1] by default
+            img = (img * 255).long()
+            img = img.squeeze()
+        return img
 
 
 class DepthToTensor:
