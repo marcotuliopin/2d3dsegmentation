@@ -17,7 +17,6 @@ class UnetAttentionHHA(nn.Module):
         if pretrained:
             self._adapt_input_channels()
         
-        # Batch normalization for each encoder output
         self.rgb_norms = nn.ModuleList([nn.BatchNorm2d(ch) for ch in self.rgb_encoder.out_channels])
         self.hha_norms = nn.ModuleList([nn.BatchNorm2d(ch) for ch in self.hha_encoder.out_channels])
 
@@ -49,27 +48,32 @@ class UnetAttentionHHA(nn.Module):
         # Fusion of features using concatenation
         rgb_feats_norm = [norm(feat) for feat, norm in zip(rgb_feats, self.rgb_norms)]
         hha_feats_norm = [norm(feat) for feat, norm in zip(hha_feats, self.hha_norms)]
-        fused = [self.fuse[i](rgb_feats_norm[i], hha_feats_norm[i]) for i in range(len(rgb_feats_norm))]
 
+        fused = [self.fuse[i](rgb_feats_norm[i], hha_feats_norm[i]) for i in range(len(rgb_feats_norm))]
+    
         decoder_output = self.decoder(fused)
         dropout_output = self.dropout(decoder_output) 
         return self.segmentation_head(dropout_output)
     
     def get_optimizer_groups(self):
         rgb_encoder = [p for name, p in self.rgb_encoder.named_parameters() if "conv1" not in name]
+        rgb_conv1 = list(self.rgb_encoder.conv1.parameters())
+        
         hha_encoder = [p for name, p in self.hha_encoder.named_parameters() if "conv1" not in name]
-
-        decoder = list(self.decoder.parameters()) + list(self.segmentation_head.parameters())
+        hha_conv1 = list(self.hha_encoder.conv1.parameters())
+        
+        fusion_params = list(self.fuse.parameters())
+        norm_params = list(self.rgb_norms.parameters()) + list(self.hha_norms.parameters())
+        decoder_params = list(self.decoder.parameters()) + list(self.segmentation_head.parameters())
 
         return [
-            {"params": self.rgb_encoder.conv1.parameters(), "lr": 5e-4},
-            {"params": self.hha_encoder.conv1.parameters(), "lr": 5e-3},
-            {"params": rgb_encoder, "lr": 1e-4},
-            {"params": hha_encoder, "lr": 1e-3},
-            {"params": self.rgb_norms.parameters(), "lr": 1e-3},
-            {"params": self.hha_norms.parameters(), "lr": 1e-3},
-            {"params": self.fuse.parameters(), "lr": 1e-3},
-            {"params": decoder, "lr": 1e-2},
+            {"params": rgb_conv1, "lr": 5e-4, "weight_decay": 0.01},
+            {"params": hha_conv1, "lr": 5e-3, "weight_decay": 0.01},
+            {"params": rgb_encoder, "lr": 1e-4, "weight_decay": 0.01},
+            {"params": hha_encoder, "lr": 1e-3, "weight_decay": 0.01},
+            {"params": fusion_params, "lr": 1e-3, "weight_decay": 0.01},
+            {"params": norm_params, "lr": 1e-3, "weight_decay": 0.001},  # Lower weight decay for BN
+            {"params": decoder_params, "lr": 1e-2, "weight_decay": 0.01},
         ]
     
     def _adapt_input_channels(self):
@@ -118,6 +122,8 @@ class CAM(nn.Module):
     def __init__(self, in_channels, reduction_ratio=8):
         super().__init__()
         self.reduced_dim = in_channels // reduction_ratio
+        if self.reduced_dim < 1:
+            self.reduced_dim = in_channels
         self.global_pool = nn.AdaptiveAvgPool2d(1)
         self.max_pool = nn.AdaptiveMaxPool2d(1)
         self.mlp = nn.Sequential(
@@ -167,13 +173,10 @@ class FRM(nn.Module):
     def forward(self, rgb_feat, hha_feat):
         rgb_ref = self.rgb_att(rgb_feat)
         hha_ref = self.hha_att(hha_feat)
-        return torch.cat([rgb_ref, hha_ref], dim=1)
-        rgb_to_hha = self.rgb_hha_att(rgb_ref, hha_ref)
-        hha_to_rgb = self.hha_rgb_att(hha_ref, rgb_ref)
-        output = torch.cat([rgb_to_hha, hha_to_rgb], dim=1)
+        output = torch.cat([rgb_ref, hha_ref], dim=1)
         return self.dropout(output)
 
 
 def get_unet_hha_attention(num_classes, dropout=0.3, pretrained=True, encoder="resnet50"):
-    print(f"Using Unet with {encoder}. Using dual encoders for RGB and HHA inputs.")
+    print(f"Using Unet with {encoder}. Using dual encoders and attention.")
     return UnetAttentionHHA(num_classes=num_classes, dropout=dropout, pretrained=pretrained, encoder=encoder)
