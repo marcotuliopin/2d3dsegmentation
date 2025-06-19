@@ -3,11 +3,6 @@ data:
   - 240
   - 360
   num_classes: 14
-  paths:
-    root_dir: data/NYUDepthv2_seg/data
-    test_file: data/NYUDepthv2_seg/data/test.parquet
-    train_file: data/NYUDepthv2_seg/data/split_train.parquet
-    val_file: data/NYUDepthv2_seg/data/split_val.parquet
   unlabeled_id: 255
 
 model:
@@ -65,7 +60,6 @@ model:
     config:
       encoder: resnet50
       dropout: 0.3
-      attention_reduction_ratio: 8
 
 output:
   directories:
@@ -82,8 +76,8 @@ train:
 
   early_stopping:
     delta: 0.001
-    mode: min
-    patience: 10
+    mode: max
+    patience: 20
 
   loss:
     cross_entropy:
