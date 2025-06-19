@@ -231,8 +231,7 @@ class TensorToLongMask(object):
 
 class DepthToTensor:
     def __call__(self, depth_img):
-        return self.depth_to_tensor(depth_img)
-
+        return self._depth_to_tensor(depth_img)
 
     def _depth_to_tensor(self, depth_img):
         depth_np = np.array(depth_img, dtype=np.uint16)
