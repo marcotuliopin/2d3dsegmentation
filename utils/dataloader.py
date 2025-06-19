@@ -195,13 +195,13 @@ class SyncTransform:
         self.width = width
 
     def __call__(self, rgb_img, seg_mask, depth_img=None, hha_img=None):
-        i, j, h, w = T.RandomResizedCrop.get_params(rgb_img, scale=(0.8, 1.0), ratio=(0.9, 1.2))
-        rgb_img = TF.resized_crop(rgb_img, i, j, h, w, (self.height, self.width), T.InterpolationMode.BILINEAR)
-        seg_mask = TF.resized_crop(seg_mask, i, j, h, w, (self.height, self.width), T.InterpolationMode.NEAREST)
+        i, j, h, w = T.RandomCrop.get_params(rgb_img, (self.height, self.width))
+        rgb_img = TF.crop(rgb_img, i, j, h, w)
+        seg_mask = TF.crop(seg_mask, i, j, h, w)
         if depth_img is not None:
-            depth_img = TF.resized_crop(depth_img, i, j, h, w, (self.height, self.width), T.InterpolationMode.NEAREST)
+            depth_img = TF.crop(depth_img, i, j, h, w)
         if hha_img is not None:
-            hha_img = TF.resized_crop(hha_img, i, j, h, w, (self.height, self.width), T.InterpolationMode.NEAREST)
+            hha_img = TF.crop(hha_img, i, j, h, w)
 
         if random.random() < 0.5:
             rgb_img = TF.hflip(rgb_img)
