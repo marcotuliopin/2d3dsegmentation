@@ -221,9 +221,6 @@ class SyncTransform:
 
 
 class TensorToLongMask(object):
-    """
-    Custom transform to convert tensor masks to long type.
-    """
     def __call__(self, img):
         if isinstance(img, torch.Tensor):
             # ToTensor scales to [0, 1] by default
@@ -233,19 +230,12 @@ class TensorToLongMask(object):
 
 
 class DepthToTensor:
-    """
-    Custom transform to convert depth images to tensors.
-    """
     def __call__(self, depth_img):
-        return depth_to_tensor(depth_img)
+        return self.depth_to_tensor(depth_img)
 
 
-def depth_to_tensor(depth_img):
-    """
-    Convert depth image to tensor.
-    :param depth_img: PIL image uint16 with depth in mm
-    """
-    depth_np = np.array(depth_img, dtype=np.uint16)
-    depth_meters = depth_np.astype(np.float32) / 1e4 # Convert to meters
-    depth_tensor = torch.from_numpy(depth_meters).unsqueeze(0)  # (1, H, W)
-    return depth_tensor
+    def _depth_to_tensor(self, depth_img):
+        depth_np = np.array(depth_img, dtype=np.uint16)
+        depth_meters = depth_np.astype(np.float32) / 1e4 # Convert to meters
+        depth_tensor = torch.from_numpy(depth_meters).unsqueeze(0)  # (1, H, W)
+        return depth_tensor
