@@ -41,9 +41,9 @@ class NYUv2(Dataset):
     def __init__(
         self,
         root: str,
+        seed: int = 42,
         train: bool = True,
         download: bool = False,
-        seed: int = 42,
         rgb_transform=None,
         seg_transform=None,
         sn_transform=None,

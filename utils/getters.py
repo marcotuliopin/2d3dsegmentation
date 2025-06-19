@@ -13,9 +13,10 @@ from utils.losses import DiceLoss, FocalLoss
 
 
 # Class weights for the NYUv2 dataset obtained via the inverse log frequency of each class
-nyuv2_weights = [0.11756749, 0.58930845, 3.86320268, 1.42978694, 0.61211152,
+nyuv2_weights_13 = [0.11756749, 0.58930845, 3.86320268, 1.42978694, 0.61211152,
     0.21107389, 0.14174245, 0.16072167, 1.03913962, 0.87946776,
     0.68799929, 3.74469765, 0.08783193, 0.43534866]
+
 
 
 def get_model(name, **kwargs):
@@ -40,7 +41,7 @@ def get_loss_function(name: str, loss_config: dict, ignore_index: int, device: s
         return nn.CrossEntropyLoss()
     elif name == "weighted_cross_entropy":
         return nn.CrossEntropyLoss(
-            weight=torch.tensor(nyuv2_weights).to(device),
+            weight=torch.tensor(nyuv2_weights_13).to(device),
             ignore_index=ignore_index,
         )
     elif name == "focal_loss":

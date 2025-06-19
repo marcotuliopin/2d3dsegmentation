@@ -29,7 +29,7 @@ imagenet_std = (0.229, 0.224, 0.225)
 height0, width0 = 480, 640  # The original NYUv2 image size
 
 
-def nyuv2_dataloader(
+def get_dataloader(
     train: bool = True,
     split_val: bool = False,
     download: bool = False,
@@ -192,8 +192,8 @@ def test_rgb_transform(height=height0, width=width0):
     """
     return transforms.Compose(
         [
-            # transforms.Resize((height, width), interpolation=transforms.InterpolationMode.BILINEAR),
-            transforms.CenterCrop((height, width)),
+            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.BILINEAR),
+            # transforms.CenterCrop((height, width)),
             transforms.ToTensor(),
             transforms.Normalize(mean=imagenet_mean, std=imagenet_std),
         ]
@@ -206,8 +206,8 @@ def test_seg_transform(height=height0, width=width0):
     """
     return transforms.Compose(
         [
-            # transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
-            transforms.CenterCrop((height, width)),
+            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
+            # transforms.CenterCrop((height, width)),
             transforms.ToTensor(),
             TensorToLongMask(),  # Convert to long type for segmentation masks
         ]
@@ -220,8 +220,8 @@ def test_depth_transform(height=height0, width=width0):
     """
     return transforms.Compose(
         [
-            # transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
-            transforms.CenterCrop((height, width)),
+            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
+            # transforms.CenterCrop((height, width)),
             DepthToTensor(),
             transforms.Normalize(mean=[nyuv2_depth_mean], std=[nyuv2_depth_std])
         ]
@@ -234,8 +234,8 @@ def test_hha_transform(height=height0, width=width0):
     """
     return transforms.Compose(
         [
-            # transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
-            transforms.CenterCrop((height, width)),
+            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
+            # transforms.CenterCrop((height, width)),
             transforms.ToTensor(),
             transforms.Normalize(mean=nyuv2_hha_mean, std=nyuv2_hha_std),
         ]
@@ -256,7 +256,6 @@ class SyncTransform:
         if hha_img is not None:
             hha_img = TF.resized_crop(hha_img, i, j, h, w, (self.height, self.width), T.InterpolationMode.NEAREST)
 
-
         # 2. Aplicar RandomHorizontalFlip
         if random.random() < 0.5:
             rgb_img = TF.hflip(rgb_img)
@@ -266,15 +265,6 @@ class SyncTransform:
             if hha_img is not None:
                 hha_img = TF.hflip(hha_img)
 
-        # 3. Aplicar RandomRotation
-        angle = T.RandomRotation.get_params(degrees=[-10, 10]) # Define o range de rotação
-        rgb_img = TF.rotate(rgb_img, angle, interpolation=T.InterpolationMode.BILINEAR)
-        seg_mask = TF.rotate(seg_mask, angle, interpolation=T.InterpolationMode.NEAREST)
-        if depth_img is not None:
-            depth_img = TF.rotate(depth_img, angle, interpolation=T.InterpolationMode.NEAREST)
-        if hha_img is not None:
-            hha_img = TF.rotate(hha_img, angle, interpolation=T.InterpolationMode.NEAREST)
-        
         imgs = [rgb_img, seg_mask]
         if depth_img is not None:
             imgs.append(depth_img)
