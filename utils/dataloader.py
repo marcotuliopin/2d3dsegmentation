@@ -3,10 +3,10 @@ import random
 import numpy as np
 from copy import copy
 from torch.utils.data import DataLoader
-from torchvision import transforms
 from utils.dataset import NYUv2
 import torchvision.transforms as T
 import torchvision.transforms.functional as TF
+
 
 data_root = "data/nyuv2"
 
@@ -36,44 +36,32 @@ def get_dataloader(
     seed: int = 42,
     image_size: tuple = (height0, width0),
 ):
-    """
-    Creates a DataLoader for the NYUv2 dataset.
-
-    :param train: whether to load the train or test set
-    :param split_val: whether to split the training set into train and validation sets
-    :param download: whether to download and process data if missing
-    :param rgb_only: whether to include depth images in the dataset
-    :param batch_size: number of samples per batch
-    :param num_workers: number of subprocesses to use for data loading
-    :param image_size: size of the images (height, width)
-    :param seed: random seed for reproducibility
-    """
     generator = torch.Generator().manual_seed(seed)
 
-    rgb_xform = train_rgb_transform() if train else test_rgb_transform(*image_size)
-    seg_xform = train_seg_transform() if train else test_seg_transform(*image_size)
-    depth_xform = train_depth_transform() if train else test_depth_transform(*image_size)
-    depth_xform = None
-    hha_xform = None
-    sync_transform = SyncTransform(*image_size) if train else None
-
-    if not rgb_only:
-        if use_hha:
-            hha_xform = train_hha_transform() if train else test_hha_transform(*image_size)
-        else:
-            depth_xform = train_depth_transform() if train else test_depth_transform(*image_size)
-
-    dataset = NYUv2(
-        data_root,
-        seed=seed,
-        train=train,
-        download=download,
-        rgb_transform=rgb_xform,
-        seg_transform=seg_xform,
-        depth_transform=depth_xform,
-        hha_transform=hha_xform,
-        sync_transform=sync_transform,
-    )
+    if train:
+        dataset = NYUv2(
+            data_root,
+            seed=seed,
+            train=True,
+            download=download,
+            rgb_transform=train_rgb_transform(),
+            seg_transform=train_seg_transform(),
+            depth_transform=train_depth_transform() if not rgb_only and not use_hha else None,
+            hha_transform=train_hha_transform() if not rgb_only and use_hha else None,
+            sync_transform=SyncTransform(*image_size),
+        )
+    else:
+        dataset = NYUv2(
+            data_root,
+            seed=seed,
+            train=False,
+            download=download,
+            rgb_transform=test_rgb_transform(*image_size),
+            seg_transform=test_seg_transform(*image_size),
+            depth_transform=test_depth_transform(*image_size) if not rgb_only else None,
+            hha_transform=test_hha_transform(*image_size) if not rgb_only and use_hha else None,
+            sync_transform=None,
+        )
 
     if split_val and train:
         train_size = int(0.8 * len(dataset))
@@ -83,10 +71,8 @@ def get_dataloader(
 
         val_dataset.dataset.rgb_transform = test_rgb_transform()
         val_dataset.dataset.seg_transform = test_seg_transform()
-        if depth_xform is not None:
-            val_dataset.dataset.depth_transform = test_depth_transform()
-        if hha_xform is not None:
-            val_dataset.dataset.hha_transform = test_hha_transform()
+        val_dataset.dataset.depth_transform = test_depth_transform() if not rgb_only and not use_hha else None
+        val_dataset.dataset.hha_transform = test_hha_transform() if not rgb_only and use_hha else None
         val_dataset.dataset.sync_transform = None
 
         train_loader = DataLoader(
@@ -126,79 +112,79 @@ def worker_init_fn(worker_id):
 
 
 def train_rgb_transform():
-    return transforms.Compose(
+    return T.Compose(
         [
-            transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
-            transforms.RandomApply([transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0))], p=0.1),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=nyuv2_rgb_mean, std=nyuv2_rgb_std),
+            T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
+            T.RandomApply([T.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0))], p=0.1),
+            T.ToTensor(),
+            T.Normalize(mean=nyuv2_rgb_mean, std=nyuv2_rgb_std),
         ]
     )
 
 
 def train_seg_transform():
-    return transforms.Compose(
+    return T.Compose(
         [
-            transforms.ToTensor(),
+            T.ToTensor(),
             TensorToLongMask(),  # Convert to long type for segmentation masks
         ]
     )
 
 
 def train_depth_transform():
-    return transforms.Compose(
+    return T.Compose(
         [
             DepthToTensor(),
-            transforms.Normalize(mean=[nyuv2_depth_mean], std=[nyuv2_depth_std])
+            T.Normalize(mean=[nyuv2_depth_mean], std=[nyuv2_depth_std])
         ]
     )
 
 
 def train_hha_transform():
-    return transforms.Compose(
+    return T.Compose(
         [
-            transforms.ToTensor(),
-            transforms.Normalize(mean=nyuv2_hha_mean, std=nyuv2_hha_std),
+            T.ToTensor(),
+            T.Normalize(mean=nyuv2_hha_mean, std=nyuv2_hha_std),
         ]
     )
 
 
 def test_rgb_transform(height=height0, width=width0):
-    return transforms.Compose(
+    return T.Compose(
         [
             T.CenterCrop((height, width)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=nyuv2_rgb_mean, std=nyuv2_rgb_std),
+            T.ToTensor(),
+            T.Normalize(mean=nyuv2_rgb_mean, std=nyuv2_rgb_std),
         ]
     )
 
 
 def test_seg_transform(height=height0, width=width0):
-    return transforms.Compose(
+    return T.Compose(
         [
             T.CenterCrop((height, width)),
-            transforms.ToTensor(),
+            T.ToTensor(),
             TensorToLongMask(),  # Convert to long type for segmentation masks
         ]
     )
 
 
 def test_depth_transform(height=height0, width=width0):
-    return transforms.Compose(
+    return T.Compose(
         [
             T.CenterCrop((height, width)),
             DepthToTensor(),
-            transforms.Normalize(mean=[nyuv2_depth_mean], std=[nyuv2_depth_std])
+            T.Normalize(mean=[nyuv2_depth_mean], std=[nyuv2_depth_std])
         ]
     )
 
 
 def test_hha_transform(height=height0, width=width0):
-    return transforms.Compose(
+    return T.Compose(
         [
             T.CenterCrop((height, width)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=nyuv2_hha_mean, std=nyuv2_hha_std),
+            T.ToTensor(),
+            T.Normalize(mean=nyuv2_hha_mean, std=nyuv2_hha_std),
         ]
     )
 
@@ -217,7 +203,6 @@ class SyncTransform:
         if hha_img is not None:
             hha_img = TF.resized_crop(hha_img, i, j, h, w, (self.height, self.width), T.InterpolationMode.NEAREST)
 
-        # 2. Aplicar RandomHorizontalFlip
         if random.random() < 0.5:
             rgb_img = TF.hflip(rgb_img)
             seg_mask = TF.hflip(seg_mask)
