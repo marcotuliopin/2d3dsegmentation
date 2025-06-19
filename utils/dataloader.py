@@ -10,21 +10,17 @@ import torchvision.transforms.functional as TF
 
 data_root = "data/nyuv2"
 
-# The mean and std values for the NYUv2 HHA images, used for normalization.
-nyuv2_hha_mean = (0.538264, 0.443498, 0.439129)
-nyuv2_hha_std = (0.178119, 0.240194, 0.141724)
-
-# The mean and std values for the NYUv2 depth images, used for normalization of the depth map.
-nyuv2_depth_mean = 2.684067
-nyuv2_depth_std = 0.921854
-
-# RGB camera parameters
-fx, fy = 5.1885790117450188e+02, 5.1946961112127485e+02
-cx, cy = 3.2558244941119034e+02, 2.5373616633400465e+02
-
-# The mean and std values for ImageNet, used for normalization with pretrained models.
 imagenet_mean = (0.485, 0.456, 0.406)
 imagenet_std = (0.229, 0.224, 0.225)
+
+nyuv2_rgb_mean = (0.4850, 0.4163, 0.3982)
+nyuv2_rgb_std = (0.2878, 0.2952, 0.3087)
+
+nyuv2_hha_mean = (0.538464, 0.4442, 0.4390)
+nyuv2_hha_std = (0.2284, 0.2628, 0.1479)
+
+nyuv2_depth_mean = 2.6859
+nyuv2_depth_std = 1.2209
 
 height0, width0 = 480, 640  # The original NYUv2 image size
 
@@ -54,18 +50,18 @@ def get_dataloader(
     """
     generator = torch.Generator().manual_seed(seed)
 
-    rgb_xform = train_rgb_transform(*image_size) if train else test_rgb_transform(*image_size)
-    seg_xform = train_seg_transform(*image_size) if train else test_seg_transform(*image_size)
-    depth_xform = train_depth_transform(*image_size) if train else test_depth_transform(*image_size)
+    rgb_xform = train_rgb_transform() if train else test_rgb_transform(*image_size)
+    seg_xform = train_seg_transform() if train else test_seg_transform(*image_size)
+    depth_xform = train_depth_transform() if train else test_depth_transform(*image_size)
     depth_xform = None
     hha_xform = None
     sync_transform = SyncTransform(*image_size) if train else None
 
     if not rgb_only:
         if use_hha:
-            hha_xform = train_hha_transform(*image_size) if train else test_hha_transform(*image_size) # TODO: Add test transform for HHA
+            hha_xform = train_hha_transform() if train else test_hha_transform(*image_size)
         else:
-            depth_xform = train_depth_transform(*image_size) if train else test_depth_transform(*image_size)
+            depth_xform = train_depth_transform() if train else test_depth_transform(*image_size)
 
     dataset = NYUv2(
         data_root,
@@ -85,12 +81,12 @@ def get_dataloader(
         train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size], generator=generator)
         val_dataset.dataset = copy(dataset)
 
-        val_dataset.dataset.rgb_transform = test_rgb_transform(*image_size)
-        val_dataset.dataset.seg_transform = test_seg_transform(*image_size)
+        val_dataset.dataset.rgb_transform = test_rgb_transform()
+        val_dataset.dataset.seg_transform = test_seg_transform()
         if depth_xform is not None:
-            val_dataset.dataset.depth_transform = test_depth_transform(*image_size)
+            val_dataset.dataset.depth_transform = test_depth_transform()
         if hha_xform is not None:
-            val_dataset.dataset.hha_transform = test_hha_transform(*image_size)
+            val_dataset.dataset.hha_transform = test_hha_transform()
         val_dataset.dataset.sync_transform = None
 
         train_loader = DataLoader(
@@ -121,9 +117,6 @@ def get_dataloader(
 
 
 def worker_init_fn(worker_id):
-    """
-    Initializes the worker process with a unique seed based on the worker ID.
-    """
     seed = (torch.initial_seed() + worker_id) % 2**32
     np.random.seed(seed)
     random.seed(seed)
@@ -132,54 +125,38 @@ def worker_init_fn(worker_id):
     torch.manual_seed(seed)
 
 
-def train_rgb_transform(height=height0, width=width0):
-    """
-    Transformation for train RGB images. Apply augmentation techniques.
-    """
+def train_rgb_transform():
     return transforms.Compose(
         [
-            # transforms.Resize((height, width), interpolation=transforms.InterpolationMode.BILINEAR),
             transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
             transforms.RandomApply([transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0))], p=0.1),
             transforms.ToTensor(),
-            transforms.Normalize(mean=imagenet_mean, std=imagenet_std),
+            transforms.Normalize(mean=nyuv2_rgb_mean, std=nyuv2_rgb_std),
         ]
     )
 
 
-def train_seg_transform(height=height0, width=width0):
-    """
-    Transformation for segmentation masks.
-    """
+def train_seg_transform():
     return transforms.Compose(
         [
-            # transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
             transforms.ToTensor(),
             TensorToLongMask(),  # Convert to long type for segmentation masks
         ]
     )
 
 
-def train_depth_transform(height=height0, width=width0):
-    """
-    Transformation for depth images.
-    """
+def train_depth_transform():
     return transforms.Compose(
         [
-            # transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
             DepthToTensor(),
             transforms.Normalize(mean=[nyuv2_depth_mean], std=[nyuv2_depth_std])
         ]
     )
 
 
-def train_hha_transform(height=height0, width=width0):
-    """
-    Transformation for HHA images (depth-based features).
-    """
+def train_hha_transform():
     return transforms.Compose(
         [
-            # transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
             transforms.ToTensor(),
             transforms.Normalize(mean=nyuv2_hha_mean, std=nyuv2_hha_std),
         ]
@@ -187,27 +164,19 @@ def train_hha_transform(height=height0, width=width0):
 
 
 def test_rgb_transform(height=height0, width=width0):
-    """
-    Transformation for validation/test RGB images.
-    """
     return transforms.Compose(
         [
-            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.BILINEAR),
-            # transforms.CenterCrop((height, width)),
+            T.CenterCrop((height, width)),
             transforms.ToTensor(),
-            transforms.Normalize(mean=imagenet_mean, std=imagenet_std),
+            transforms.Normalize(mean=nyuv2_rgb_mean, std=nyuv2_rgb_std),
         ]
     )
 
 
 def test_seg_transform(height=height0, width=width0):
-    """
-    Transformation for validation/test segmentation masks.
-    """
     return transforms.Compose(
         [
-            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
-            # transforms.CenterCrop((height, width)),
+            T.CenterCrop((height, width)),
             transforms.ToTensor(),
             TensorToLongMask(),  # Convert to long type for segmentation masks
         ]
@@ -215,13 +184,9 @@ def test_seg_transform(height=height0, width=width0):
 
 
 def test_depth_transform(height=height0, width=width0):
-    """
-    Transformation for validation/test depth images.
-    """
     return transforms.Compose(
         [
-            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
-            # transforms.CenterCrop((height, width)),
+            T.CenterCrop((height, width)),
             DepthToTensor(),
             transforms.Normalize(mean=[nyuv2_depth_mean], std=[nyuv2_depth_std])
         ]
@@ -229,13 +194,9 @@ def test_depth_transform(height=height0, width=width0):
 
 
 def test_hha_transform(height=height0, width=width0):
-    """
-    Transformation for validation/test HHA images.
-    """
     return transforms.Compose(
         [
-            transforms.Resize((height, width), interpolation=transforms.InterpolationMode.NEAREST),
-            # transforms.CenterCrop((height, width)),
+            T.CenterCrop((height, width)),
             transforms.ToTensor(),
             transforms.Normalize(mean=nyuv2_hha_mean, std=nyuv2_hha_std),
         ]
@@ -248,7 +209,7 @@ class SyncTransform:
         self.width = width
 
     def __call__(self, rgb_img, seg_mask, depth_img=None, hha_img=None):
-        i, j, h, w = T.RandomResizedCrop.get_params(rgb_img, scale=(0.7, 1.0), ratio=(0.75, 1.33))
+        i, j, h, w = T.RandomResizedCrop.get_params(rgb_img, scale=(0.8, 1.0), ratio=(0.9, 1.2))
         rgb_img = TF.resized_crop(rgb_img, i, j, h, w, (self.height, self.width), T.InterpolationMode.BILINEAR)
         seg_mask = TF.resized_crop(seg_mask, i, j, h, w, (self.height, self.width), T.InterpolationMode.NEAREST)
         if depth_img is not None:
