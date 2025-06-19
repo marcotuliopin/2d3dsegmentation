@@ -5,7 +5,7 @@ from segmentation_models_pytorch.encoders import get_encoder
 from segmentation_models_pytorch.decoders.unet.decoder import UnetDecoder
 
 
-class UnetAttentionHHA(nn.Module):
+class UnetAttLateFusionHHA(nn.Module):
     def __init__(self, num_classes, encoder="resnet50", dropout=0.3, pretrained=True):
         super().__init__()
 
@@ -177,6 +177,6 @@ class FRM(nn.Module):
         return self.dropout(output)
 
 
-def get_unet_hha_attention(num_classes, dropout=0.3, pretrained=True, encoder="resnet50"):
+def get_late_fusion_hha_att(num_classes, dropout=0.3, pretrained=True, encoder="resnet50"):
     print(f"Using Unet with {encoder}. Using dual encoders and attention.")
-    return UnetAttentionHHA(num_classes=num_classes, dropout=dropout, pretrained=pretrained, encoder=encoder)
+    return UnetAttLateFusionHHA(num_classes=num_classes, dropout=dropout, pretrained=pretrained, encoder=encoder)

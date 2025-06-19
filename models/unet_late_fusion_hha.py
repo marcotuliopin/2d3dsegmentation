@@ -5,7 +5,7 @@ from segmentation_models_pytorch.encoders import get_encoder
 from segmentation_models_pytorch.decoders.unet.decoder import UnetDecoder
 
 
-class UnetDualEncoderHHA(nn.Module):
+class UnetLateFusionHHA(nn.Module):
     def __init__(self, num_classes, encoder="resnet50", dropout=0.3, pretrained=True):
         super().__init__()
 
@@ -113,6 +113,6 @@ class UnetDualEncoderHHA(nn.Module):
         self.hha_encoder.conv1 = new_conv_hha
 
 
-def get_unet_hha_dual_encoder(num_classes, dropout=0.3, pretrained=True, encoder="resnet50"):
+def get_unet_late_fusion_hha(num_classes, dropout=0.3, pretrained=True, encoder="resnet50"):
     print(f"Using Unet with {encoder}. Using dual encoders for RGB and HHA inputs.")
-    return UnetDualEncoderHHA(num_classes=num_classes, dropout=dropout, pretrained=pretrained, encoder=encoder)
+    return UnetLateFusionHHA(num_classes=num_classes, dropout=dropout, pretrained=pretrained, encoder=encoder)

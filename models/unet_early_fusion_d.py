@@ -3,7 +3,7 @@ import torch.nn as nn
 import segmentation_models_pytorch as smp
 
 
-class UNetHHA(nn.Module):
+class UNetEarlyFusionD(nn.Module):
     def __init__(
         self,
         num_classes,
@@ -23,14 +23,14 @@ class UNetHHA(nn.Module):
             activation=None,
         )
 
-        # Modify to accept 6 input channels (3 RGB + 3 HHA)
+        # Modify to accept 4 input channels (3 RGB + 1 D)
         if pretrained:
             self._adapt_input_channels()
         else:
             self.unet = smp.Unet(
                 encoder_name=encoder,
-                encoder_weights=None,
-                in_channels=6,
+                encoder_weights=weights,
+                in_channels=4, # RGB-D information
                 classes=num_classes,
                 activation=None,
             )
@@ -56,34 +56,32 @@ class UNetHHA(nn.Module):
             {"params": encoder, "lr": 1e-3},
             {"params": decoder, "lr": 1e-2},
         ]
-
+    
     def _adapt_input_channels(self):
-        first_conv = self.unet.encoder.conv1  # For Resnet
-
+        first_conv = self.unet.encoder.conv1
+        
         new_conv = nn.Conv2d(
-            6, 
-            first_conv.out_channels,
+            4,  # RGB + Depth
+            out_channels=first_conv.out_channels,
             kernel_size=first_conv.kernel_size,
             stride=first_conv.stride,
             padding=first_conv.padding,
-            bias=first_conv.bias is not None
+            bias=first_conv.bias is not None,
         )
 
         with torch.no_grad():
-            # Copy original RGB weights
             new_conv.weight.data[:, :3, :, :] = first_conv.weight.data
-            # Duplicate the RGB weights for HHA channels
-            new_conv.weight.data[:, 3:, :, :] = first_conv.weight.data
-
+            # Initialize the depth channel weights with the average of the RGB channels
+            new_conv.weight.data[:, 3, :, :] = new_conv.weight.data[:, :3, :, :].mean(dim=1)
             if first_conv.bias is not None:
                 new_conv.bias.data = first_conv.bias.data.clone()
-
+        
         self.unet.encoder.conv1 = new_conv
 
 
-def get_unet_hha_concatenate(num_classes, dropout=0.3, pretrained=True, encoder="resnet50"):
-    print(f"Using model: UNet with {encoder} encoder. HHA concatenation enabled.")
-    return UNetHHA(
+def get_unet_early_fusion_d(num_classes, dropout=0.3, pretrained=True, encoder="resnet50"):
+    print(f"Using model: UNet with {encoder} encoder. Depth concatenation enabled.")
+    return UNetEarlyFusionD(
         num_classes=num_classes,
         dropout=dropout,
         pretrained=pretrained,

@@ -2,13 +2,13 @@ import os
 import torch
 import torch.nn as nn
 
-from models.fcn_resnet50 import get_fcn_resnet50
+from models.fcn import get_fcn_resnet50
 from models.unet import get_unet
-from models.unet_depth_concatenate import get_unet_depth_concatenate
-from models.unet_hha_attention import get_unet_hha_attention
-from models.unet_hha_concatenate import get_unet_hha_concatenate
-from models.unet_depth_dual_encoder import get_unet_depth_dual_encoder
-from models.unet_hha_dual_encoder import get_unet_hha_dual_encoder
+from models.unet_early_fusion_d import get_unet_early_fusion_d
+from models.unet_late_fusion_hha_att import get_unet_late_fusion_hha_att
+from models.unet_early_fusion_hha import get_unet_early_fusion_hha
+from models.unet_late_fusion_d import get_unet_late_fusion_d
+from models.unet_late_fusion_hha import get_unet_late_fusion_hha
 from utils.losses import DiceLoss, FocalLoss
 
 
@@ -21,13 +21,13 @@ nyuv2_weights_13 = [0.11756749, 0.58930845, 3.86320268, 1.42978694, 0.61211152,
 
 def get_model(name, **kwargs):
     models = {
-        "fcn_resnet50": get_fcn_resnet50,
+        "fcn": get_fcn_resnet50,
         "unet": get_unet,
-        "unet_depth_concatenate": get_unet_depth_concatenate,
-        "unet_hha_concatenate": get_unet_hha_concatenate,
-        "unet_depth_dual_encoder": get_unet_depth_dual_encoder,
-        "unet_hha_dual_encoder": get_unet_hha_dual_encoder,
-        "unet_hha_attention": get_unet_hha_attention,
+        "unet_late_fusion_d": get_unet_late_fusion_d,
+        "unet_late_fusion_hha": get_unet_late_fusion_hha,
+        "unet_early_fusion_d": get_unet_early_fusion_d,
+        "unet_early_fusion_hha": get_unet_early_fusion_hha,
+        "unet_late_fusion_hha": get_unet_late_fusion_hha_att,
     }
     
     if name not in models:

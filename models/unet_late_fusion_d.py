@@ -5,7 +5,7 @@ from segmentation_models_pytorch.encoders import get_encoder
 from segmentation_models_pytorch.decoders.unet.decoder import UnetDecoder
 
 
-class UnetDualEncoderD(nn.Module):
+class UnetLateFusionD(nn.Module):
     def __init__(self, num_classes, encoder="resnet50", dropout=0.3, pretrained=True):
         super().__init__()
 
@@ -108,6 +108,6 @@ class UnetDualEncoderD(nn.Module):
         self.d_encoder.conv1 = new_conv_depth
 
 
-def get_unet_depth_dual_encoder(num_classes, dropout=0.3, pretrained=True, encoder="resnet50"):
+def get_unet_late_fusion_d(num_classes, dropout=0.3, pretrained=True, encoder="resnet50"):
     print(f"Using Unet with {encoder}. Using dual encoders for RGB and Depth inputs.")
-    return UnetDualEncoderD(num_classes=num_classes, dropout=dropout, pretrained=pretrained, encoder=encoder)
+    return UnetLateFusionD(num_classes=num_classes, dropout=dropout, pretrained=pretrained, encoder=encoder)

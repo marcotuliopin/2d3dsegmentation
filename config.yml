@@ -6,55 +6,48 @@ data:
   unlabeled_id: 255
 
 model:
-  fcn_resnet50:
+  fcn:
     name: fcn_resnet50
     rgb_only: true
     backbone: resnet50
     dropout: 0.3
-  unet_resnet50:
+  unet:
     name: unet
     use_hha: false
     rgb_only: true
     config:
       encoder: resnet50
       dropout: 0.3
-  unet_resnet101:
-    name: unet
-    use_hha: false
-    rgb_only: true
-    config:
-      encoder: resnet101
-      dropout: 0.3
-  unet_depth_concatenate:
-    name: unet_depth_concatenate
+  unet_early_fusion_d:
+    name: unet_early_fusion_d
     use_hha: false
     rgb_only: false
     config:
       encoder: resnet50
       dropout: 0.3
-  unet_hha_concatenate:
-    name: unet_hha_concatenate
+  unet_early_fusion_hha:
+    name: unet_early_fusion_hha
     use_hha: true
     rgb_only: false
     config:
       encoder: resnet50
       dropout: 0.3
-  unet_depth_dual_encoder:
-    name: unet_depth_dual_encoder
+  unet_late_fusion_d:
+    name: unet_late_fusion_d
     use_hha: false
     rgb_only: false
     config:
       encoder: resnet50
       dropout: 0.3
-  unet_hha_dual_encoder:
-    name: unet_hha_dual_encoder
+  unet_late_fusion_hha:
+    name: unet_late_fusion_hha
     use_hha: true
     rgb_only: false
     config:
       encoder: resnet50
       dropout: 0.3
-  unet_hha_attention:
-    name: unet_hha_attention
+  unet_late_fusion_hha_att:
+    name: unet_late_fusion_hha_att
     use_hha: true
     rgb_only: false
     config:
