@@ -8,7 +8,7 @@ import yaml
 from ptflops import get_model_complexity_info
 from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score
 
-from utils.dataloader import nyuv2_dataloader
+from utils.dataloader import get_dataloader
 from utils.getters import get_latest_checkpoint, get_model
 from utils.runner import Runner
 from utils.training import CheckpointSaver
@@ -71,7 +71,7 @@ def main(args, config):
     checkpoint_saver.load(checkpoint_path)
 
     # ------ Data  Loading ------
-    test_loader = nyuv2_dataloader(
+    test_loader = get_dataloader(
         train=False,
         rgb_only=exp_config["model"]["rgb_only"],
         use_hha=exp_config["model"]["use_hha"],

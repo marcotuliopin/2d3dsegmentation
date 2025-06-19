@@ -8,11 +8,10 @@ import numpy as np
 import yaml
 import torch
 
-from utils.dataloader import nyuv2_dataloader
+from utils.dataloader import get_dataloader
 from utils.getters import get_loss_function, get_model, get_optimizer, get_scheduler
 from utils.runner import Runner
 from utils.training import CheckpointSaver
-from torchinfo import summary
 
 
 def parse_args(config):
@@ -86,7 +85,7 @@ def main(args, config):
     os.makedirs(os.path.join(config["output"]["directories"]["plots"], args.experiment_name), exist_ok=True)
 
     # ------ Data  Loading ------
-    train_loader, val_loader = nyuv2_dataloader(
+    train_loader, val_loader = get_dataloader(
         train=True,
         split_val=True,
         seed=args.seed,
@@ -104,8 +103,8 @@ def main(args, config):
         **config["model"][args.model]["config"],
     )
     model = model.to(device)
-    with open(os.path.join(exp_dir, "model_summary.txt"), "w") as f:
-        f.write(str(summary(model, (1, 6, 240, 360))))
+    # with open(os.path.join(exp_dir, "model_summary.txt"), "w") as f:
+    #     f.write(str(summary(model, (1, 6, 240, 360))))
 
     optimizer_params = model.get_optimizer_groups()
 
