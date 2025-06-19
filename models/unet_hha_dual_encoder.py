@@ -67,7 +67,8 @@ class UnetDualEncoderHHA(nn.Module):
         rgb_feats_norm = [norm(feat) for feat, norm in zip(rgb_feats, self.rgb_norms)]
         hha_feats_norm = [norm(feat) for feat, norm in zip(hha_feats, self.hha_norms)]
         alpha = torch.sigmoid(self.balance_weights) # Adjust the balance between RGB and HHA features
-        fused = torch.cat([alpha * rgb_feats_norm, (1 - alpha) * hha_feats_norm], dim=1)
+        fused = [torch.cat([alpha * rgb_feat, (1 - alpha) * hha_feat], dim=1) 
+                 for rgb_feat, hha_feat in zip(rgb_feats_norm, hha_feats_norm)]
 
         decoder_output = self.decoder(fused)
         dropout_output = self.dropout(decoder_output) 
