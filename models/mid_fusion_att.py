@@ -91,6 +91,8 @@ class AttentionMidFusion(nn.Module):
     def get_optimizer_groups(self):
         rgb_encoder = [p for name, p in self.rgb_encoder.encoder.named_parameters() if "conv1" not in name]
         d_encoder = [p for name, p in self.d_encoder.encoder.named_parameters() if "conv1" not in name]
+        rgb_modulator = list(self.rgb_modulator.parameters())
+        d_modulator = list(self.d_modulator.parameters())
 
         decoder = list(self.decoder.parameters())
 
@@ -99,9 +101,11 @@ class AttentionMidFusion(nn.Module):
             {"params": self.d_encoder.encoder.conv1.parameters(), "lr": 5e-3},
             {"params": rgb_encoder, "lr": 1e-4},
             {"params": d_encoder, "lr": 1e-3},
+            {"params": rgb_modulator, "lr": 1e-3},
+            {"params": d_modulator, "lr": 1e-3},
             {"params": self.rgb_norms.parameters(), "lr": 1e-3},
             {"params": self.d_norms.parameters(), "lr": 1e-3},
-            {"params": decoder, "lr": 1e-2},
+            {"params": decoder, "lr": 5e-3},
         ]
     
     def _adapt_input_channels(self, d_channels):

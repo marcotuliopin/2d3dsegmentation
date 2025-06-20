@@ -51,7 +51,7 @@ class AttentionLateFusion(nn.Module):
             {"params": self.rgb_norms.parameters(), "lr": 1e-3},
             {"params": self.d_norms.parameters(), "lr": 1e-3},
             {"params": attention, "lr": 1e-3},
-            {"params": decoder, "lr": 1e-2},
+            {"params": decoder, "lr": 5e-3},
         ]
     
     def _adapt_input_channels(self, d_channels):
