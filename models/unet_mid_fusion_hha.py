@@ -64,7 +64,7 @@ class UnetMidFusionHHA(nn.Module):
         fused2 = self.fusion_encoder.layer2(fused1)
         fused2 += rgb_feats_norm[3] + hha_feats_norm[3]
 
-        fused3 = self.fusion_encoder.layer3(fused3)
+        fused3 = self.fusion_encoder.layer3(fused2)
         fused3 += rgb_feats_norm[4] + hha_feats_norm[4]
 
         fused4 = self.fusion_encoder.layer4(fused3)
