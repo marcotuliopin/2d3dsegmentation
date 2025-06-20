@@ -122,12 +122,12 @@ class NYUv2(Dataset):
     
     def _augment(self, imgs):
         if self.sync_transform is not None:
-            if self.depth_transform is not None:
-                imgs = self.sync_transform(imgs[0], imgs[1], imgs[2])
-            elif self.hha_transform is not None:
-                imgs = self.sync_transform(imgs[0], imgs[1], None, imgs[2])
-            else:
-                imgs = self.sync_transform(imgs[0], imgs[1])
+            imgs = self.sync_transform(
+                imgs[0],
+                imgs[1],
+                imgs[2] if self.depth_transform is not None else None,
+                imgs[2] if self.hha_transform is not None else None,
+            )
 
         if self.rgb_transform is not None:
             imgs[0] = self.rgb_transform(imgs[0])

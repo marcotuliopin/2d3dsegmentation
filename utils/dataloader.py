@@ -58,7 +58,7 @@ def get_dataloader(
             download=download,
             rgb_transform=test_rgb_transform(*image_size),
             seg_transform=test_seg_transform(*image_size),
-            depth_transform=test_depth_transform(*image_size) if not rgb_only else None,
+            depth_transform=test_depth_transform(*image_size) if not rgb_only and not use_hha else None,
             hha_transform=test_hha_transform(*image_size) if not rgb_only and use_hha else None,
             sync_transform=None,
         )
@@ -117,7 +117,7 @@ def train_rgb_transform():
             T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
             T.RandomApply([T.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0))], p=0.1),
             T.ToTensor(),
-            T.Normalize(mean=nyuv2_rgb_mean, std=nyuv2_rgb_std),
+            T.Normalize(mean=imagenet_mean, std=imagenet_std),
         ]
     )
 
@@ -154,7 +154,7 @@ def test_rgb_transform(height=height0, width=width0):
         [
             T.CenterCrop((height, width)),
             T.ToTensor(),
-            T.Normalize(mean=nyuv2_rgb_mean, std=nyuv2_rgb_std),
+            T.Normalize(mean=imagenet_mean, std=imagenet_std),
         ]
     )
 
