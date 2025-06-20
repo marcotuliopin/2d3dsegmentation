@@ -2,15 +2,12 @@ import os
 import torch
 import torch.nn as nn
 
-from models.fcn import get_fcn_resnet50
-from models.unet import get_unet
-from models.early_fusion_d import get_unet_early_fusion_d
-from models.early_fusion_hha_att import get_unet_early_fusion_hha_att
-from models.late_fusion_hha_att import get_unet_late_fusion_hha_att
-from models.early_fusion_hha import get_unet_early_fusion_hha
-from models.late_fusion_d import get_unet_late_fusion_d
-from models.late_fusion_hha import get_unet_late_fusion_hha
-from models.mid_fusion_hha import get_unet_mid_fusion_hha
+from models.late_fusion import LateFusion
+from models.rgb_only import RBGOnly
+from models.early_fusion_d import EarlyFusionD
+from models.early_fusion_hha_att import AttentionEarlyFusionHHA
+from models.late_fusion_att import AttentionLateFusion
+from models.early_fusion_hha import EarlyFusionHHA
 from utils.losses import DiceLoss, FocalLoss
 
 
@@ -20,18 +17,15 @@ nyuv2_weights_13 = [0.11756749, 0.58930845, 3.86320268, 1.42978694, 0.61211152,
     0.68799929, 3.74469765, 0.08783193, 0.43534866]
 
 
-
 def get_model(name, **kwargs):
     models = {
-        "fcn": get_fcn_resnet50,
-        "unet": get_unet,
-        "unet_early_fusion_d": get_unet_early_fusion_d,
-        "unet_early_fusion_hha": get_unet_early_fusion_hha,
-        "unet_early_fusion_hha_att": get_unet_early_fusion_hha_att,
-        "unet_mid_fusion_hha": get_unet_mid_fusion_hha,
-        "unet_late_fusion_d": get_unet_late_fusion_d,
-        "unet_late_fusion_hha": get_unet_late_fusion_hha,
-        "unet_late_fusion_hha": get_unet_late_fusion_hha_att,
+        "rgb_only": RBGOnly,
+        "early_fusion_d": EarlyFusionD,
+        "early_fusion_hha": EarlyFusionHHA,
+        "early_fusion_hha_att": AttentionEarlyFusionHHA,
+        "late_fusion_d": LateFusion,
+        "late_fusion_hha": LateFusion,
+        "late_fusion_hha": AttentionLateFusion,
     }
     
     if name not in models:
