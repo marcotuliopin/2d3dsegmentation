@@ -25,7 +25,7 @@ def get_model(name, **kwargs):
         "early_fusion_hha_att": AttentionEarlyFusionHHA,
         "late_fusion_d": LateFusion,
         "late_fusion_hha": LateFusion,
-        "late_fusion_hha": AttentionLateFusion,
+        "late_fusion_hha_att": AttentionLateFusion,
     }
     
     if name not in models:
