@@ -59,16 +59,16 @@ class UnetMidFusionHHA(nn.Module):
         fused0 = rgb_feats_norm[1] + hha_feats_norm[1]
 
         fused1 = self.fusion_encoder.layer1(fused0)
-        fused1 += rgb_feats_norm[2] + hha_feats_norm[2]
+        fused1 = fused1 + rgb_feats_norm[2] + hha_feats_norm[2]
 
         fused2 = self.fusion_encoder.layer2(fused1)
-        fused2 += rgb_feats_norm[3] + hha_feats_norm[3]
+        fused2 = fused2 + rgb_feats_norm[3] + hha_feats_norm[3]
 
         fused3 = self.fusion_encoder.layer3(fused2)
-        fused3 += rgb_feats_norm[4] + hha_feats_norm[4]
+        fused3 = fused3 + rgb_feats_norm[4] + hha_feats_norm[4]
 
         fused4 = self.fusion_encoder.layer4(fused3)
-        fused4 += rgb_feats_norm[5] + hha_feats_norm[5]
+        fused4 = fused4 + rgb_feats_norm[5] + hha_feats_norm[5]
 
 
         output = self.decoder([rgb, fused0, fused1, fused2, fused3, fused4])
@@ -132,7 +132,7 @@ class Encoder(nn.Module):
         self.layer4 = resnet.make_layer(resnet.Bottleneck, 1024, blocks=3, planes=512, stride=2)
         self.dropout = nn.Dropout2d(p=dropout)
 
-        self.out_channels = [3, 64, 256, 512, 1024]
+        self.out_channels = [3, 64, 256, 512, 1024, 2048]
     
     def forward(self, x):
         out = [x]
