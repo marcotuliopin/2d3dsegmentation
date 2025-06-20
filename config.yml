@@ -32,6 +32,13 @@ model:
     config:
       encoder: resnet50
       dropout: 0.3
+  unet_early_fusion_hha_att:
+    name: unet_early_fusion_hha_att
+    use_hha: true
+    rgb_only: false
+    config:
+      encoder: resnet50
+      dropout: 0.3
   unet_mid_fusion_hha:
     name: unet_mid_fusion_hha
     use_hha: true

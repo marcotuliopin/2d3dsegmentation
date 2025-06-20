@@ -1,14 +1,14 @@
 #!/bin/bash
 
 
-python train.py -n unet_mid_fusion_hha_1906 \
+python train.py -n unet_early_fusion_hha_att_1906 \
     --optimizer sgd \
     --scheduler step \
     --loss weighted_cross_entropy \
-    --model unet_mid_fusion_hha \
+    --model unet_early_fusion_hha_att \
 
 echo "Evaluating experiment..."
-python evaluate.py -n unet_mid_fusion_hha_1906
+python evaluate.py -n unet_early_fusion_hha_att_1906
 
 
 # python train.py -n unet_hha_2enc_1806 \

@@ -5,6 +5,7 @@ import torch.nn as nn
 from models.fcn import get_fcn_resnet50
 from models.unet import get_unet
 from models.unet_early_fusion_d import get_unet_early_fusion_d
+from models.unet_early_fusion_hha_att import get_unet_early_fusion_hha_att
 from models.unet_late_fusion_hha_att import get_unet_late_fusion_hha_att
 from models.unet_early_fusion_hha import get_unet_early_fusion_hha
 from models.unet_late_fusion_d import get_unet_late_fusion_d
@@ -26,6 +27,7 @@ def get_model(name, **kwargs):
         "unet": get_unet,
         "unet_early_fusion_d": get_unet_early_fusion_d,
         "unet_early_fusion_hha": get_unet_early_fusion_hha,
+        "unet_early_fusion_hha_att": get_unet_early_fusion_hha_att,
         "unet_mid_fusion_hha": get_unet_mid_fusion_hha,
         "unet_late_fusion_d": get_unet_late_fusion_d,
         "unet_late_fusion_hha": get_unet_late_fusion_hha,
