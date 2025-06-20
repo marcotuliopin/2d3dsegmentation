@@ -40,11 +40,11 @@ class AttentionEarlyFusionHHA(nn.Module):
             {"params": first_layer, "lr": 5e-3},        
             {"params": encoder, "lr": 5e-4},
             {"params": decoder, "lr": 5e-3},
-            {"params": self.fuse.parameters(), "lr": 5e-3}
+            {"params": self.attention.parameters(), "lr": 5e-3}
         ]
 
     def _adapt_input_channels(self):
-        first_conv = self.encoder.encoder.conv1  # For Resnet
+        first_conv = self.encoder.encoder.conv1
 
         new_conv = nn.Conv2d(
             6, 
