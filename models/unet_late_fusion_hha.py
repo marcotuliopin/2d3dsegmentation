@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from segmentation_models_pytorch.encoders import get_encoder
 from segmentation_models_pytorch.decoders.unet.decoder import UnetDecoder
 
@@ -30,10 +29,10 @@ class UnetLateFusionHHA(nn.Module):
         
         # Batch normalization for each encoder output
         self.rgb_norms = nn.ModuleList([
-            nn.BatchNorm2d(ch) for ch in self.rgb_encoder.out_channels
+            nn.LayerNorm(ch) for ch in self.rgb_encoder.out_channels
         ])
         self.hha_norms = nn.ModuleList([
-            nn.BatchNorm2d(ch) for ch in self.hha_encoder.out_channels
+            nn.LayerNorm(ch) for ch in self.hha_encoder.out_channels
         ])
 
         # Balance weights for the attention output. Adjust the balance between RGB and HHA features.
@@ -64,11 +63,11 @@ class UnetLateFusionHHA(nn.Module):
         hha_feats = self.hha_encoder(hha)
 
         # Fusion of features using concatenation
-        rgb_feats_norm = [norm(feat) for feat, norm in zip(rgb_feats, self.rgb_norms)]
-        hha_feats_norm = [norm(feat) for feat, norm in zip(hha_feats, self.hha_norms)]
+        # rgb_feats_norm = [norm(feat) for feat, norm in zip(rgb_feats, self.rgb_norms)]
+        # hha_feats_norm = [norm(feat) for feat, norm in zip(hha_feats, self.hha_norms)]
         alpha = torch.sigmoid(self.balance_weights) # Adjust the balance between RGB and HHA features
         fused = [torch.cat([alpha * rgb_feat, (1 - alpha) * hha_feat], dim=1) 
-                 for rgb_feat, hha_feat in zip(rgb_feats_norm, hha_feats_norm)]
+                 for rgb_feat, hha_feat in zip(rgb_feats, hha_feats)]
 
         decoder_output = self.decoder(fused)
         dropout_output = self.dropout(decoder_output) 

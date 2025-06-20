@@ -9,6 +9,7 @@ from models.unet_late_fusion_hha_att import get_unet_late_fusion_hha_att
 from models.unet_early_fusion_hha import get_unet_early_fusion_hha
 from models.unet_late_fusion_d import get_unet_late_fusion_d
 from models.unet_late_fusion_hha import get_unet_late_fusion_hha
+from models.unet_mid_fusion_hha import get_unet_mid_fusion_hha
 from utils.losses import DiceLoss, FocalLoss
 
 
@@ -23,10 +24,11 @@ def get_model(name, **kwargs):
     models = {
         "fcn": get_fcn_resnet50,
         "unet": get_unet,
-        "unet_late_fusion_d": get_unet_late_fusion_d,
-        "unet_late_fusion_hha": get_unet_late_fusion_hha,
         "unet_early_fusion_d": get_unet_early_fusion_d,
         "unet_early_fusion_hha": get_unet_early_fusion_hha,
+        "unet_mid_fusion_hha": get_unet_mid_fusion_hha,
+        "unet_late_fusion_d": get_unet_late_fusion_d,
+        "unet_late_fusion_hha": get_unet_late_fusion_hha,
         "unet_late_fusion_hha": get_unet_late_fusion_hha_att,
     }
     

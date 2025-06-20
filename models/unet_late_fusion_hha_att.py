@@ -177,6 +177,6 @@ class FRM(nn.Module):
         return self.dropout(output)
 
 
-def get_late_fusion_hha_att(num_classes, dropout=0.3, pretrained=True, encoder="resnet50"):
+def get_unet_late_fusion_hha_att(num_classes, dropout=0.3, pretrained=True, encoder="resnet50"):
     print(f"Using Unet with {encoder}. Using dual encoders and attention.")
     return UnetAttLateFusionHHA(num_classes=num_classes, dropout=dropout, pretrained=pretrained, encoder=encoder)

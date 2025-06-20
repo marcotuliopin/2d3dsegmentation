@@ -1,7 +1,7 @@
 data:
   shape:
-  - 252
-  - 252
+  - 256
+  - 256
   num_classes: 14
   unlabeled_id: 255
 
@@ -27,6 +27,13 @@ model:
       dropout: 0.3
   unet_early_fusion_hha:
     name: unet_early_fusion_hha
+    use_hha: true
+    rgb_only: false
+    config:
+      encoder: resnet50
+      dropout: 0.3
+  unet_mid_fusion_hha:
+    name: unet_mid_fusion_hha
     use_hha: true
     rgb_only: false
     config:
