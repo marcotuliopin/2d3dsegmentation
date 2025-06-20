@@ -4,13 +4,13 @@ import torch.nn as nn
 
 from models.fcn import get_fcn_resnet50
 from models.unet import get_unet
-from models.unet_early_fusion_d import get_unet_early_fusion_d
-from models.unet_early_fusion_hha_att import get_unet_early_fusion_hha_att
-from models.unet_late_fusion_hha_att import get_unet_late_fusion_hha_att
-from models.unet_early_fusion_hha import get_unet_early_fusion_hha
-from models.unet_late_fusion_d import get_unet_late_fusion_d
-from models.unet_late_fusion_hha import get_unet_late_fusion_hha
-from models.unet_mid_fusion_hha import get_unet_mid_fusion_hha
+from models.early_fusion_d import get_unet_early_fusion_d
+from models.early_fusion_hha_att import get_unet_early_fusion_hha_att
+from models.late_fusion_hha_att import get_unet_late_fusion_hha_att
+from models.early_fusion_hha import get_unet_early_fusion_hha
+from models.late_fusion_d import get_unet_late_fusion_d
+from models.late_fusion_hha import get_unet_late_fusion_hha
+from models.mid_fusion_hha import get_unet_mid_fusion_hha
 from utils.losses import DiceLoss, FocalLoss
 
 
