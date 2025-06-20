@@ -33,9 +33,12 @@ class UnetMidFusionHHA(nn.Module):
             self._adapt_input_channels()
 
         self.fusion_encoder = Encoder(dropout=dropout)
+
+        self.fusion_layers = nn.ModuleList([nn.Conv2d(in_channels=ch * 3, out_channels=ch, kernel_size=1)
+                                            for ch in self.fusion_encoder.out_channels[1:]])
         
-        self.rgb_norms = nn.ModuleList([nn.GroupNorm(1, ch) for ch in self.rgb_encoder.out_channels ])
-        self.hha_norms = nn.ModuleList([nn.GroupNorm(1, ch) for ch in self.hha_encoder.out_channels ])
+        self.rgb_norms = nn.ModuleList([nn.BatchNorm2d(ch) for ch in self.rgb_encoder.out_channels])
+        self.hha_norms = nn.ModuleList([nn.BatchNorm2d(ch) for ch in self.hha_encoder.out_channels])
 
         self.decoder = UnetDecoder(
             encoder_channels=self.fusion_encoder.out_channels,
@@ -56,20 +59,19 @@ class UnetMidFusionHHA(nn.Module):
         rgb_feats_norm = [norm(feat) for feat, norm in zip(rgb_feats, self.rgb_norms)]
         hha_feats_norm = [norm(feat) for feat, norm in zip(hha_feats, self.hha_norms)]
 
-        fused0 = rgb_feats_norm[1] + hha_feats_norm[1]
+        fused0 = self.fusion_layers[0](torch.cat([rgb_feats_norm[1], hha_feats_norm[1]], dim=1))
 
         fused1 = self.fusion_encoder.layer1(fused0)
-        fused1 = fused1 + rgb_feats_norm[2] + hha_feats_norm[2]
+        fused1 = self.fusion_layers[1](torch.cat([rgb_feats_norm[2], hha_feats_norm[2], fused1], dim=1))
 
         fused2 = self.fusion_encoder.layer2(fused1)
-        fused2 = fused2 + rgb_feats_norm[3] + hha_feats_norm[3]
+        fused2 = self.fusion_layers[2](torch.cat([rgb_feats_norm[3], hha_feats_norm[3], fused2], dim=1))
 
         fused3 = self.fusion_encoder.layer3(fused2)
-        fused3 = fused3 + rgb_feats_norm[4] + hha_feats_norm[4]
+        fused3 = self.fusion_layers[3](torch.cat([rgb_feats_norm[4], hha_feats_norm[4], fused3], dim=1))
 
         fused4 = self.fusion_encoder.layer4(fused3)
-        fused4 = fused4 + rgb_feats_norm[5] + hha_feats_norm[5]
-
+        fused4 = self.fusion_layers[4](torch.cat([rgb_feats_norm[5], hha_feats_norm[5], fused4], dim=1))
 
         output = self.decoder([rgb, fused0, fused1, fused2, fused3, fused4])
         output = self.dropout(output) 
