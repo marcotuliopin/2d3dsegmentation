@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 
 from models.late_fusion import LateFusion
+from models.mid_fusion_att import AttentionMidFusion
 from models.rgb_only import RBGOnly
 from models.early_fusion_d import EarlyFusionD
 from models.early_fusion_hha_att import AttentionEarlyFusionHHA
@@ -23,6 +24,7 @@ def get_model(name, **kwargs):
         "early_fusion_d": EarlyFusionD,
         "early_fusion_hha": EarlyFusionHHA,
         "early_fusion_hha_att": AttentionEarlyFusionHHA,
+        "mid_fusion_hha_att": AttentionMidFusion,
         "late_fusion_d": LateFusion,
         "late_fusion_hha": LateFusion,
         "late_fusion_hha_att": AttentionLateFusion,

@@ -30,12 +30,13 @@ model:
     rgb_only: false
     config:
       dropout: 0.3
-  mid_fusion_hha:
-    name: mid_fusion_hha
+  mid_fusion_hha_att:
+    name: mid_fusion_hha_att
     use_hha: true
     rgb_only: false
     config:
       dropout: 0.3
+      d_channels: 3
   late_fusion_d:
     name: late_fusion_d
     use_hha: false

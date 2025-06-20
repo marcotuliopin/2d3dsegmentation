@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
 
-from models.attention_modules import FRM
+from models.attention_modules import CAM
 from models.resnet50 import ResNet50Decoder, ResNet50Encoder
 
 
-class AttentionLateFusion(nn.Module):
+class AttentionMidFusion(nn.Module):
     def __init__(self, num_classes, dropout=0.3, d_channels=1):
         super().__init__()
 
@@ -16,7 +16,18 @@ class AttentionLateFusion(nn.Module):
         self.rgb_norms = nn.ModuleList([nn.BatchNorm2d(ch) for ch in self.rgb_encoder.out_channels])
         self.d_norms = nn.ModuleList([nn.BatchNorm2d(ch) for ch in self.d_encoder.out_channels])
 
-        self.attention = nn.ModuleList([FRM(in_channels=ch, reduction_ratio=8) for ch in self.rgb_encoder.out_channels])
+        self.rgb_modulator = nn.ModuleList([
+            CAM(in_channels=64, reduction_ratio=8),
+            CAM(in_channels=256, reduction_ratio=8),
+            CAM(in_channels=512, reduction_ratio=8),
+            CAM(in_channels=1024, reduction_ratio=8)
+        ])
+        self.d_modulator = nn.ModuleList([
+            CAM(in_channels=64, reduction_ratio=8),
+            CAM(in_channels=256, reduction_ratio=8),
+            CAM(in_channels=512, reduction_ratio=8),
+            CAM(in_channels=1024, reduction_ratio=8)
+        ])
 
         self.decoder = ResNet50Decoder(num_channels=num_classes, dropout=dropout)
 
@@ -24,24 +35,64 @@ class AttentionLateFusion(nn.Module):
         rgb = x[:, :3, :, :]
         d = x[:, 3:, :, :]
 
-        rgb_feats = self.rgb_encoder(rgb)
-        d_feats = self.d_encoder(d)
+        rgb_feats = []
+        d_feats = []
 
-        # Fusion of features using concatenation
+        rgb = self.rgb_encoder.encoder.conv1(rgb)
+        rgb = self.rgb_encoder.encoder.bn1(rgb)
+        rgb = self.rgb_encoder.encoder.relu(rgb)
+        rgb = self.rgb_encoder.encoder.maxpool(rgb)
+        
+        d = self.d_encoder.encoder.conv1(d)
+        d = self.d_encoder.encoder.bn1(d)
+        d = self.d_encoder.encoder.relu(d)
+        d = self.d_encoder.encoder.maxpool(d)
+
+        rgb = self.rgb_modulator[0](rgb, d)
+        d = self.d_modulator[0](d, rgb)
+
+        rgb = self.rgb_encoder.encoder.layer1(rgb)
+        d = self.d_encoder.encoder.layer1(d)
+        rgb_feats.append(rgb)
+        d_feats.append(d)
+
+        rgb = self.rgb_modulator[1](rgb, d)
+        d = self.d_modulator[1](d, rgb)
+
+        rgb = self.rgb_encoder.encoder.layer2(rgb)
+        d = self.d_encoder.encoder.layer2(d)
+        rgb_feats.append(rgb)
+        d_feats.append(d)
+
+        rgb = self.rgb_modulator[2](rgb, d)
+        d = self.d_modulator[2](d, rgb)
+
+        rgb = self.rgb_encoder.encoder.layer3(rgb)
+        d = self.d_encoder.encoder.layer3(d)
+        rgb_feats.append(rgb)
+        d_feats.append(d)
+
+        rgb = self.rgb_modulator[3](rgb, d)
+        d = self.d_modulator[3](d, rgb)
+
+        rgb = self.rgb_encoder.encoder.layer4(rgb)
+        d = self.d_encoder.encoder.layer4(d)
+        rgb_feats.append(rgb)
+        d_feats.append(d)
+
         rgb_feats_norm = [norm(feat) for feat, norm in zip(rgb_feats, self.rgb_norms)]
         d_feats_norm = [norm(feat) for feat, norm in zip(d_feats, self.d_norms)]
+        x = [r + h for r, h in zip(rgb_feats_norm, d_feats_norm)]
 
-        fused_feats = [self.attention[i](rgb_feats_norm[i], d_feats_norm[i]) for i in range(len(rgb_feats_norm))]
-        x = self.decoder(fused_feats[-1], fused_feats[:-1])
+        x = self.decoder(x[-1], x[:-1])
 
         return x
-
+    
     def get_optimizer_groups(self):
         rgb_encoder = [p for name, p in self.rgb_encoder.encoder.named_parameters() if "conv1" not in name]
         d_encoder = [p for name, p in self.d_encoder.encoder.named_parameters() if "conv1" not in name]
 
         decoder = list(self.decoder.parameters())
-        attention = list(self.attention.parameters())
 
         return [
             {"params": self.rgb_encoder.encoder.conv1.parameters(), "lr": 5e-4},
@@ -50,7 +101,6 @@ class AttentionLateFusion(nn.Module):
             {"params": d_encoder, "lr": 1e-3},
             {"params": self.rgb_norms.parameters(), "lr": 1e-3},
             {"params": self.d_norms.parameters(), "lr": 1e-3},
-            {"params": attention, "lr": 1e-3},
             {"params": decoder, "lr": 1e-2},
         ]
     
@@ -69,6 +119,7 @@ class AttentionLateFusion(nn.Module):
 
         with torch.no_grad():
             if d_channels == 1:
+                # Average the RGB channels to initialize the depth channel
                 new_conv_d.weight.data = first_conv_rgb.weight.data.mean(dim=1, keepdim=True)
             else:
                 new_conv_d.weight.data = first_conv_rgb.weight.data.clone()
@@ -76,14 +127,3 @@ class AttentionLateFusion(nn.Module):
                 new_conv_d.bias.data = first_conv_d.bias.data.clone()
 
         self.d_encoder.encoder.conv1 = new_conv_d
-
-
-if __name__ == "__main__":
-    # Example usage
-    model = AttentionLateFusion(num_classes=13, d_channels=1)
-    print(model)
-    
-    # Test the forward pass with a dummy input
-    dummy_input = torch.randn(1, 4, 224, 224)  # Batch size of 1, 4 channels (RGB + Depth), 224x224 image
-    output = model(dummy_input)
-    print(output.shape)  # Should be [1, num_classes, H, W]
