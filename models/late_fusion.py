@@ -33,14 +33,14 @@ class LateFusion(nn.Module):
         return x
     
     def get_optimizer_groups(self):
-        rgb_encoder = [p for name, p in self.rgb_encoder.named_parameters() if "conv1" not in name]
-        d_encoder = [p for name, p in self.d_encoder.named_parameters() if "conv1" not in name]
+        rgb_encoder = [p for name, p in self.rgb_encoder.encoder.named_parameters() if "conv1" not in name]
+        d_encoder = [p for name, p in self.d_encoder.encoder.named_parameters() if "conv1" not in name]
 
         decoder = list(self.decoder.parameters())
 
         return [
-            {"params": self.rgb_encoder.conv1.parameters(), "lr": 5e-4},
-            {"params": self.d_encoder.conv1.parameters(), "lr": 5e-3},
+            {"params": self.rgb_encoder.encoder.conv1.parameters(), "lr": 5e-4},
+            {"params": self.d_encoder.encoder.conv1.parameters(), "lr": 5e-3},
             {"params": rgb_encoder, "lr": 1e-4},
             {"params": d_encoder, "lr": 1e-3},
             {"params": self.rgb_norms.parameters(), "lr": 1e-3},
