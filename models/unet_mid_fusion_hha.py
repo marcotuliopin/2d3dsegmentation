@@ -59,15 +59,16 @@ class UnetMidFusionHHA(nn.Module):
         fused1 = self.fusion_encoder.layer1(rgb_feats_norm[1] + hha_feats_norm[1])
 
         fused2 = self.fusion_encoder.fusion_conv1(fused1)
-        fused2 = self.fusion_encoder.layer2(fused2)
+        fused2 = self.fusion_encoder.layer2(fused2 + rgb_feats_norm[2] + hha_feats_norm[2])
 
         fused3 = self.fusion_encoder.fusion_conv2(fused2)
-        fused3 = self.fusion_encoder.layer3(fused3)
+        fused3 = self.fusion_encoder.layer3(fused3 + rgb_feats_norm[3] + hha_feats_norm[3])
 
         fused4 = self.fusion_encoder.fusion_conv3(fused3)
-        fused4 = self.fusion_encoder.layer4(fused4)
+        fused4 = self.fusion_encoder.layer4(fused4 + rgb_feats_norm[4] + hha_feats_norm[4])
 
         fused5 = self.fusion_encoder.fusion_conv4(fused4)
+        fused5 = self.fusion_encoder.layer5(fused5 + rgb_feats_norm[5] + hha_feats_norm[5])
 
         output = self.decoder([rgb, fused1, fused2, fused3, fused4, fused5])
         output = self.dropout(output) 
