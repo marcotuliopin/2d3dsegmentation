@@ -112,15 +112,15 @@ def visualize_predictions(model, data_loader, device, num_samples=5, save_path=N
     display_images = np.clip(display_images, 0, 1)
 
     # Carregar mapeamento id2label se fornecido
-    id2label_path = "data/nyuv2/id2label.json"
-    id2label = None
-    if id2label_path:
-        try:
-            import json
-            with open(id2label_path, 'r') as f:
-                id2label = json.load(f)
-        except Exception as e:
-            print(f"Error while loading id2label: {e}")
+    # id2label_path = "data/nyuv2/id2label.json"
+    # id2label = None
+    # if id2label_path:
+    #     try:
+    #         import json
+    #         with open(id2label_path, 'r') as f:
+    #             id2label = json.load(f)
+    #     except Exception as e:
+    #         print(f"Error while loading id2label: {e}")
     
     # Coletar todas as classes presentes nas imagens para a legenda
     all_classes = set()
@@ -196,7 +196,7 @@ def get_color_map():
     tab20c = plt.cm.get_cmap('tab20c', 20)
     colors.extend([tab20c(i) for i in range(20)])
 
-    colors[0] = (0.0, 0.0, 0.0, 1.0)
+    colors[40] = (0.0, 0.0, 0.0, 1.0)
 
     return colors
 

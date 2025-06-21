@@ -8,7 +8,7 @@ import torchvision.transforms as T
 import torchvision.transforms.functional as TF
 
 
-data_root = "data/nyuv2"
+data_root = "data/nyuv2/data"
 
 imagenet_mean = (0.485, 0.456, 0.406)
 imagenet_std = (0.229, 0.224, 0.225)
@@ -16,11 +16,11 @@ imagenet_std = (0.229, 0.224, 0.225)
 nyuv2_rgb_mean = (0.4850, 0.4163, 0.3982)
 nyuv2_rgb_std = (0.2878, 0.2952, 0.3087)
 
-nyuv2_hha_mean = (0.538464, 0.4442, 0.4390)
-nyuv2_hha_std = (0.2284, 0.2628, 0.1479)
+nyuv2_hha_mean = (0.5219, 0.4478, 0.4387)
+nyuv2_hha_std = (0.2276, 0.2684, 0.1468)
 
-nyuv2_depth_mean = 2.6859
-nyuv2_depth_std = 1.2209
+nyuv2_depth_mean = 2.8419
+nyuv2_depth_std = 1.4173
 
 height0, width0 = 480, 640  # The original NYUv2 image size
 
@@ -28,7 +28,6 @@ height0, width0 = 480, 640  # The original NYUv2 image size
 def get_dataloader(
     train: bool = True,
     split_val: bool = False,
-    download: bool = False,
     rgb_only: bool = False,
     use_hha: bool = False,
     batch_size: int = 8,
@@ -43,7 +42,6 @@ def get_dataloader(
             data_root,
             seed=seed,
             train=True,
-            download=download,
             rgb_transform=train_rgb_transform(),
             seg_transform=train_seg_transform(),
             depth_transform=train_depth_transform() if not rgb_only and not use_hha else None,
@@ -55,7 +53,6 @@ def get_dataloader(
             data_root,
             seed=seed,
             train=False,
-            download=download,
             rgb_transform=test_rgb_transform(*image_size),
             seg_transform=test_seg_transform(*image_size),
             depth_transform=test_depth_transform(*image_size) if not rgb_only and not use_hha else None,
@@ -235,6 +232,6 @@ class DepthToTensor:
 
     def _depth_to_tensor(self, depth_img):
         depth_np = np.array(depth_img, dtype=np.uint16)
-        depth_meters = depth_np.astype(np.float32) / 1e4 # Convert to meters
+        depth_meters = depth_np.astype(np.float32) / 1e3 # Convert to meters
         depth_tensor = torch.from_numpy(depth_meters).unsqueeze(0)  # (1, H, W)
         return depth_tensor

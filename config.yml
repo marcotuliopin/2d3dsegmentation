@@ -2,7 +2,7 @@ data:
   shape:
   - 480
   - 640
-  num_classes: 14
+  num_classes: 40
   unlabeled_id: 255
 
 model:

@@ -7,7 +7,7 @@ from collections import defaultdict
 from tqdm import tqdm
 
 
-root = "data/nyuv2"
+root = "data/nyuv2/data"
 
 
 def get_rgb_stats(dir):
@@ -59,7 +59,7 @@ def get_rgb_stats(dir):
         print("--------------------")
         print()
 
-        with open("data/nyuv2/stats.txt", "a") as f:
+        with open("data/nyuv2/data/stats.txt", "a") as f:
             f.write("--------------------\n")
             f.write(f"from {dir}:\n")
             f.write(f"channel {channel + 1}:\n")
@@ -83,7 +83,7 @@ def get_1d_stats(dir, transform=None):
             img = Image.open(img_path)
             tensor = transform(img)
 
-            pixels = tensor.flatten()
+            pixels = tensor.flatten()*255
             unique_values = np.unique(pixels.numpy(), return_counts=True)
             for i in range(len(unique_values[0])):
                 unique_pixels[unique_values[0][i]] += unique_values[1][i]
@@ -104,10 +104,12 @@ def get_1d_stats(dir, transform=None):
     print(f" std     | {std_val:.4f}")
     print(f" min     | {min_val:.4f}")
     print(f" max     | {max_val:.4f}")
+    print(f" values  | {pixels}")
+    print(f" counts  | {counts}")
     print("--------------------")
     print()
 
-    with open("data/nyuv2/stats.txt", "a") as f:
+    with open("data/nyuv2/data/stats.txt", "a") as f:
         f.write("--------------------\n")
         f.write(f"from {dir}:\n")
         f.write(f" mean    | {mean_val:.4f}\n")
@@ -125,18 +127,18 @@ class DepthToTensor:
 
     def _depth_to_tensor(self, depth_img):
         depth_np = np.array(depth_img, dtype=np.uint16)
-        depth_meters = depth_np.astype(np.float32) / 1e4 # Convert to meters
+        depth_meters = depth_np.astype(np.float32) / 1e3 # Convert to meters
         depth_tensor = torch.from_numpy(depth_meters).unsqueeze(0)  # (1, H, W)
         return depth_tensor
 
 
 print("depth stats:")
-get_1d_stats(root + "/train_depth", transform=DepthToTensor())
+get_1d_stats(root + "/depth/train", transform=DepthToTensor())
 print("label stats:")
-get_1d_stats(root + "/train_seg13")
+get_1d_stats(root + "/seg40/train")
 print("rgb stats:")
-get_rgb_stats(root + "/train_rgb")
+get_rgb_stats(root + "/image/train")
 print("hha stats:")
-get_rgb_stats(root + "/train_hha")
+get_rgb_stats(root + "/hha/train")
 print("stats done")
 
