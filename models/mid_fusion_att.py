@@ -6,11 +6,11 @@ from models.resnet50 import ResNet50Decoder, ResNet50Encoder
 
 
 class AttentionMidFusion(nn.Module):
-    def __init__(self, num_classes, dropout=0.3, d_channels=1):
+    def __init__(self, num_classes, dropout=0.0, d_channels=1):
         super().__init__()
 
         self.rgb_encoder = ResNet50Encoder()
-        self.d_encoder = ResNet50Encoder(dropout=dropout)
+        self.d_encoder = ResNet50Encoder()
         self._adapt_input_channels(d_channels)
         
         self.rgb_norms = nn.ModuleList([nn.BatchNorm2d(ch) for ch in self.rgb_encoder.out_channels])
@@ -29,7 +29,7 @@ class AttentionMidFusion(nn.Module):
             CAM(in_channels=1024, reduction_ratio=8)
         ])
 
-        self.decoder = ResNet50Decoder(num_channels=num_classes, dropout=dropout)
+        self.decoder = ResNet50Decoder(num_channels=num_classes)
 
     def forward(self, x):
         rgb = x[:, :3, :, :]
@@ -82,30 +82,21 @@ class AttentionMidFusion(nn.Module):
 
         rgb_feats_norm = [norm(feat) for feat, norm in zip(rgb_feats, self.rgb_norms)]
         d_feats_norm = [norm(feat) for feat, norm in zip(d_feats, self.d_norms)]
+        
         x = [r + h for r, h in zip(rgb_feats_norm, d_feats_norm)]
-
         x = self.decoder(x[-1], x[:-1])
 
         return x
     
     def get_optimizer_groups(self):
-        rgb_encoder = [p for name, p in self.rgb_encoder.encoder.named_parameters() if "conv1" not in name]
-        d_encoder = [p for name, p in self.d_encoder.encoder.named_parameters() if "conv1" not in name]
-        rgb_modulator = list(self.rgb_modulator.parameters())
-        d_modulator = list(self.d_modulator.parameters())
-
-        decoder = list(self.decoder.parameters())
+        attention_parameters = list(self.d_modulator.parameters()) + list(self.rgb_modulator.parameters()) + \
+                               list(self.rgb_norms.parameters()) + list(self.d_norms.parameters())
 
         return [
-            {"params": self.rgb_encoder.encoder.conv1.parameters(), "lr": 5e-4},
-            {"params": self.d_encoder.encoder.conv1.parameters(), "lr": 5e-3},
-            {"params": rgb_encoder, "lr": 1e-4},
-            {"params": d_encoder, "lr": 1e-3},
-            {"params": rgb_modulator, "lr": 1e-3},
-            {"params": d_modulator, "lr": 1e-3},
-            {"params": self.rgb_norms.parameters(), "lr": 1e-3},
-            {"params": self.d_norms.parameters(), "lr": 1e-3},
-            {"params": decoder, "lr": 5e-3},
+            {"params": self.rgb_encoder.encoder.parameters(), "lr": 1e-4},
+            {"params": self.d_encoder.encoder.parameters(), "lr": 3e-4},
+            {"params": attention_parameters, "lr": 3e-4},
+            {"params": self.decoder.parameters(), "lr": 5e-4},
         ]
     
     def _adapt_input_channels(self, d_channels):

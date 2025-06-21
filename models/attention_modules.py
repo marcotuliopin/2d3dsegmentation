@@ -10,14 +10,12 @@ class SAM(nn.Module):
         super(SAM, self).__init__()
         self.bias = bias
         self.conv = nn.Conv2d(in_channels=2, out_channels=1, kernel_size=7, stride=1, padding=3, dilation=1, bias=self.bias)
-        self.dropout = nn.Dropout2d(p=0.2)
 
     def forward(self, x):
         max = torch.max(x,1)[0].unsqueeze(1)
         avg = torch.mean(x,1).unsqueeze(1)
         concat = torch.cat((max,avg), dim=1)
         output = self.conv(concat)
-        output = self.dropout(output)
         output = F.sigmoid(output) * x 
         return output 
 

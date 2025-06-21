@@ -88,6 +88,7 @@ def get_dataloader(
             batch_size=batch_size,
             shuffle=False,
             num_workers=num_workers,
+            generator=generator,
             worker_init_fn=worker_init_fn,
         )
         return train_loader, val_loader

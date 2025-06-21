@@ -9,13 +9,13 @@ class LateFusion(nn.Module):
         super().__init__()
 
         self.rgb_encoder = ResNet50Encoder()
-        self.d_encoder = ResNet50Encoder(dropout=dropout)
+        self.d_encoder = ResNet50Encoder()
         self._adapt_input_channels(d_channels)
         
         self.rgb_norms = nn.ModuleList([nn.BatchNorm2d(ch) for ch in self.rgb_encoder.out_channels])
         self.d_norms = nn.ModuleList([nn.BatchNorm2d(ch) for ch in self.d_encoder.out_channels])
 
-        self.decoder = ResNet50Decoder(num_channels=num_classes, dropout=dropout)
+        self.decoder = ResNet50Decoder(num_channels=num_classes)
 
     def forward(self, x):
         rgb = x[:, :3, :, :]
@@ -33,19 +33,13 @@ class LateFusion(nn.Module):
         return x
     
     def get_optimizer_groups(self):
-        rgb_encoder = [p for name, p in self.rgb_encoder.encoder.named_parameters() if "conv1" not in name]
-        d_encoder = [p for name, p in self.d_encoder.encoder.named_parameters() if "conv1" not in name]
-
-        decoder = list(self.decoder.parameters())
+        attention_parameters = list(self.rgb_norms.parameters()) + list(self.d_norms.parameters())
 
         return [
-            {"params": self.rgb_encoder.encoder.conv1.parameters(), "lr": 5e-4},
-            {"params": self.d_encoder.encoder.conv1.parameters(), "lr": 5e-3},
-            {"params": rgb_encoder, "lr": 1e-4},
-            {"params": d_encoder, "lr": 1e-3},
-            {"params": self.rgb_norms.parameters(), "lr": 1e-3},
-            {"params": self.d_norms.parameters(), "lr": 1e-3},
-            {"params": decoder, "lr": 5e-3},
+            {"params": self.rgb_encoder.encoder.parameters(), "lr": 1e-4},
+            {"params": self.d_encoder.encoder.parameters(), "lr": 3e-4},
+            {"params": attention_parameters, "lr": 3e-4},
+            {"params": self.decoder.parameters(), "lr": 5e-4},
         ]
     
     def _adapt_input_channels(self, d_channels):

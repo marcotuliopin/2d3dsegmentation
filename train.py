@@ -85,9 +85,8 @@ def main(args, config):
     os.makedirs(os.path.join(config["output"]["directories"]["plots"], args.experiment_name), exist_ok=True)
 
     # ------ Data  Loading ------
-    train_loader, val_loader = get_dataloader(
+    train_loader = get_dataloader(
         train=True,
-        split_val=True,
         seed=args.seed,
         batch_size=args.batch_size,
         rgb_only=config["model"][args.model]["rgb_only"],
@@ -146,37 +145,38 @@ def main(args, config):
     )
 
     # ------ Training ------
-    best_miou = 0
     non_improved_epochs = 0
+    best_loss = float("inf")
+    train_losses = []
     
     start_time = time()
     for epoch in range(start_epoch, args.epochs):
         train_loss = trainer.train_epoch(train_loader)
-        val_loss, val_miou = trainer.validate(val_loader)
+        train_losses.append(train_loss)
 
         scheduler.step()
 
-        if val_miou > best_miou + config["train"]["early_stopping"]["delta"]:
-            print(f"Validation mIoU improved from {best_miou:.4f} to {val_miou:.4f}. Saving model.")
+        if epoch % 20 == 0:
             checkpoint_saver.save(epoch, verbose=True)
-            best_miou = val_miou
+
+        non_improved_epochs += 1
+        if train_loss < best_loss:
+            best_loss = train_loss
             non_improved_epochs = 0
-        else:
-            non_improved_epochs += 1
-            if non_improved_epochs >= config["train"]["early_stopping"]["patience"]:
-                print(f"Early stopping at epoch {epoch} due to no improvement.")
-                break
 
         print_log(
             experiment_name=args.experiment_name,
             epoch=epoch,
             train_loss=train_loss,
-            val_loss=val_loss,
-            val_miou=val_miou,
             learning_rate=scheduler.get_last_lr()[0],
             time_elapsed=time() - start_time,
             non_improved_epochs=non_improved_epochs,
         )
+
+    checkpoint_saver.save(epoch, verbose=True)
+
+    with open(os.path.join(exp_dir, "training_results.pkl"), "wb") as f:
+        pickle.dump(train_losses, f)
 
     print(f"Training complete. Results saved in {exp_dir}")
 
@@ -260,8 +260,6 @@ def print_log(
     experiment_name,
     epoch,
     train_loss,
-    val_loss,
-    val_miou,
     learning_rate,
     time_elapsed,
     non_improved_epochs,
@@ -276,8 +274,6 @@ def print_log(
     print(f"|    learning_rate    | {learning_rate:<8.6f} |")
     print(f"| metrics/            |          |")
     print(f"|    train_loss       | {train_loss:<8.4f} |")
-    print(f"|    val_loss         | {val_loss:<8.4f} |")
-    print(f"|    val_miou         | {val_miou:<8.4f} |")
     print("----------------------------------")
 
 

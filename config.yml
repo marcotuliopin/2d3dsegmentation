@@ -11,52 +11,52 @@ model:
     use_hha: false
     rgb_only: true
     config:
-      dropout: 0.3
+      dropout: 0.0
   early_fusion_d:
     name: early_fusion_d
     use_hha: false
     rgb_only: false
     config:
-      dropout: 0.3
+      dropout: 0.0
   early_fusion_hha:
     name: early_fusion_hha
     use_hha: true
     rgb_only: false
     config:
-      dropout: 0.3
+      dropout: 0.0
   early_fusion_hha_att:
     name: early_fusion_hha_att
     use_hha: true
     rgb_only: false
     config:
-      dropout: 0.3
+      dropout: 0.2
   mid_fusion_hha_att:
     name: mid_fusion_hha_att
     use_hha: true
     rgb_only: false
     config:
-      dropout: 0.3
+      dropout: 0.2
       d_channels: 3
   late_fusion_d:
     name: late_fusion_d
     use_hha: false
     rgb_only: false
     config:
-      dropout: 0.3
+      dropout: 0.0
       d_channels: 1
   late_fusion_hha:
     name: late_fusion_hha
     use_hha: true
     rgb_only: false
     config:
-      dropout: 0.3
+      dropout: 0.0
       d_channels: 3
   late_fusion_hha_att:
     name: late_fusion_hha_att
     use_hha: true
     rgb_only: false
     config:
-      dropout: 0.3
+      dropout: 0.0
       d_channels: 3
 
 output:
@@ -68,14 +68,14 @@ output:
 
 train:
   seed: 42
-  batch_size: 4
-  epochs: 100
+  batch_size: 8
+  epochs: 70
   num_workers: 4
 
   early_stopping:
     delta: 0.001
     mode: max
-    patience: 20
+    patience: 10
 
   loss:
     cross_entropy:
@@ -97,19 +97,15 @@ train:
     polynomial:
       power: 0.9
     step:
-      gamma: 0.3
-      step_size: 30
+      gamma: 0.5
+      step_size: 40
+    cosine:
+      eta_min: 0.000001
 
   optimizer:
     adam:
-      betas:
-      - 0.9
-      - 0.999
-      eps: 1.0e-08
-      learning_rate: 0.005
-      weight_decay: 0.001
+      weight_decay: 0.0001
     sgd:
-      learning_rate: 0.002
       momentum: 0.9
       weight_decay: 0.0001
       nesterov: true

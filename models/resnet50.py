@@ -3,11 +3,10 @@ import torch.nn as nn
 from torchvision import models
 
 class ResNet50Encoder(nn.Module):
-    def __init__(self, dropout=0.0):
+    def __init__(self):
         super().__init__()
         # We are using the ResNet50 model from torchvision to be able to easily load the pretrained weights
         self.encoder = models.resnet50(weights=models.resnet.ResNet50_Weights.DEFAULT)
-        self.dropout = nn.Dropout2d(p=dropout)
         self.out_channels = (256, 512, 1024, 2048)
 
     def forward(self, x):
@@ -18,30 +17,25 @@ class ResNet50Encoder(nn.Module):
         x = self.encoder.maxpool(x)
 
         x = self.encoder.layer1(x)
-        x = self.dropout(x)
         features.append(x)
 
         x = self.encoder.layer2(x)
-        x = self.dropout(x)
         features.append(x)
 
         x = self.encoder.layer3(x)
-        x = self.dropout(x)
         features.append(x)
 
         x = self.encoder.layer4(x)
-        x = self.dropout(x)
         features.append(x)
 
         return features
 
 
 class ResNet50Decoder(nn.Module):
-    def __init__(self, num_channels=14, dropout=0.0):
+    def __init__(self, num_channels=14):
         super().__init__()
 
         self.in_channels = 2048
-        self.dropout = nn.Dropout2d(p=dropout)
 
         ResBlock = BottleneckDecoder
         layer_list = [3, 4, 6, 3]
@@ -55,33 +49,27 @@ class ResNet50Decoder(nn.Module):
         self.batch_norm_up = nn.BatchNorm2d(64)
         self.relu = nn.ReLU()
         
-        self.final_dropout = nn.Dropout2d(p=dropout)
         self.final_conv = nn.Conv2d(64, num_channels, kernel_size=1)
         
     def forward(self, x, skip_connections=None):
         x = self.layer4(x)
-        x = self.dropout(x)
         
         if skip_connections is not None and len(skip_connections) >= 3:
             x = torch.cat([x, skip_connections[2]], dim=1)
             
         x = self.layer3(x)
-        x = self.dropout(x)
         
         if skip_connections is not None and len(skip_connections) >= 2:
             x = torch.cat([x, skip_connections[1]], dim=1)
             
         x = self.layer2(x)
-        x = self.dropout(x)
-        
+
         if skip_connections is not None and len(skip_connections) >= 1:
             x = torch.cat([x, skip_connections[0]], dim=1)
             
         x = self.layer1(x)
-        x = self.dropout(x)
 
         x = self.relu(self.batch_norm_up(self.upsample(x)))
-        x = self.final_dropout(x)
         x = self.final_conv(x)
         
         return x

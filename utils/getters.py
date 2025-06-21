@@ -1,4 +1,5 @@
 import os
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -16,6 +17,15 @@ from utils.losses import DiceLoss, FocalLoss
 nyuv2_weights_13 = [0.11756749, 0.58930845, 3.86320268, 1.42978694, 0.61211152,
     0.21107389, 0.14174245, 0.16072167, 1.03913962, 0.87946776,
     0.68799929, 3.74469765, 0.08783193, 0.43534866]
+nyuv2_weights_13 = np.sqrt(nyuv2_weights_13).astype(np.float32)
+
+nyuv2_weights_40 = [0.3362954, 0.51579217, 0.833313, 1.10415918, 1.10656899, 1.57062122,
+1.75098122, 1.70675922, 2.70528308, 3.00852065, 3.41453301, 0.72696774,
+0.37219925, 0.61000999, 1.35101043, 2.84171938, 1.14236484, 0.84928282,
+1.24909831, 1.56750125, 1.40320842, 2.57801666, 3.04702835, 2.13375681,
+2.10076904, 2.43978033, 3.09761998, 1.0999633, 1.03666337, 1.29801976,
+2.157234, 1.05230399, 3.17923476, 1.5148722, 2.457525, 3.35349377,
+1.01800481, 2.93533064, 1.12817226, 1.95414124, 1.63697035]
 
 
 def get_model(name, **kwargs):
@@ -62,16 +72,12 @@ def get_loss_function(name: str, loss_config: dict, ignore_index: int, device: s
 def get_optimizer(optimizer_name: str, model_params: dict, optimizer_config: dict, param_groups: list):
     if optimizer_name == "adam":
         return torch.optim.AdamW(
-            model_params,
-            betas=optimizer_config["betas"],
-            eps=optimizer_config["eps"],
-            lr=optimizer_config["learning_rate"],
+            param_groups,
             weight_decay=optimizer_config["weight_decay"],
         )
     elif optimizer_name == "sgd":
         return torch.optim.SGD(
             param_groups,
-            lr=optimizer_config["learning_rate"],
             momentum=optimizer_config["momentum"],
             weight_decay=optimizer_config["weight_decay"],
             nesterov=optimizer_config["nesterov"]
@@ -97,8 +103,14 @@ def get_scheduler(scheduler_name, optimizer, scheduler_config, batch_size, num_e
     elif scheduler_name == "polynomial":
         return torch.optim.lr_scheduler.PolynomialLR(
             optimizer,
-            total_iters=(num_epochs * len_dataloader) // batch_size,
+            total_iters=num_epochs,
             power=scheduler_config["power"],
+        )
+    elif scheduler_name == "cosine":
+        return torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=num_epochs,
+            eta_min=scheduler_config["eta_min"],
         )
     else:
         raise ValueError(f"Unknown scheduler: {scheduler_name}")
