@@ -97,9 +97,7 @@ def visualize_predictions(model, data_loader, device, num_samples=5, save_path=N
     
     # Get predictions
     with torch.no_grad():
-        outputs = model(model_input)
-        if isinstance(outputs, dict):
-            outputs = outputs["out"]
+        outputs = model(model_input)[-1]
         preds = torch.argmax(outputs, dim=1).cpu().numpy()
     
     # Denormalizar apenas as imagens RGB para visualização

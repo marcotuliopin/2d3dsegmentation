@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
 
-from models.attention_modules import FRM
-from models.resnet50 import ResNet50Decoder, ResNet50Encoder
+from models.attention_modules import GC_FFM
+from models.resnet50 import ResNet50Encoder
+from models.unet import UNetDecoder
 
 
 class AttentionLateFusion(nn.Module):
@@ -10,48 +11,80 @@ class AttentionLateFusion(nn.Module):
         super().__init__()
 
         self.rgb_encoder = ResNet50Encoder()
-        self.d_encoder = ResNet50Encoder(dropout=dropout)
+        self.d_encoder = ResNet50Encoder()
         self._adapt_input_channels(d_channels)
         
-        self.rgb_norms = nn.ModuleList([nn.BatchNorm2d(ch) for ch in self.rgb_encoder.out_channels])
-        self.d_norms = nn.ModuleList([nn.BatchNorm2d(ch) for ch in self.d_encoder.out_channels])
+        self.attention = nn.ModuleList([
+            GC_FFM(in_channels=64),
+            GC_FFM(in_channels=256),
+            GC_FFM(in_channels=512),
+            GC_FFM(in_channels=1024),
+            GC_FFM(in_channels=2048)
+        ])
 
-        self.attention = nn.ModuleList([FRM(in_channels=ch, reduction_ratio=8) for ch in self.rgb_encoder.out_channels])
+        self.decoder = UNetDecoder(encoder_channels=self.d_encoder.out_channels, num_classes=num_classes)
 
-        self.decoder = ResNet50Decoder(num_channels=num_classes, dropout=dropout)
+        self.dropout = nn.Dropout2d(dropout)
 
     def forward(self, x):
         rgb = x[:, :3, :, :]
         d = x[:, 3:, :, :]
 
-        rgb_feats = self.rgb_encoder(rgb)
-        d_feats = self.d_encoder(d)
+        fused_feats = []
 
-        # Fusion of features using concatenation
-        rgb_feats_norm = [norm(feat) for feat, norm in zip(rgb_feats, self.rgb_norms)]
-        d_feats_norm = [norm(feat) for feat, norm in zip(d_feats, self.d_norms)]
+        rgb = self.rgb_encoder.encoder.conv1(rgb)
+        rgb = self.rgb_encoder.encoder.bn1(rgb)
+        rgb = self.rgb_encoder.encoder.relu(rgb)
 
-        fused_feats = [self.attention[i](rgb_feats_norm[i], d_feats_norm[i]) for i in range(len(rgb_feats_norm))]
-        x = self.decoder(fused_feats[-1], fused_feats[:-1])
+        d = self.d_encoder.encoder.conv1(d)
+        d = self.d_encoder.encoder.bn1(d)
+        d = self.d_encoder.encoder.relu(d)
+
+        att = self.attention[0](rgb, d)
+        att = self.dropout(att)
+        fused_feats.append(att)
+
+        rgb = self.rgb_encoder.encoder.maxpool(rgb)
+        d = self.d_encoder.encoder.maxpool(d)
+
+        rgb = self.rgb_encoder.encoder.layer1(rgb)
+        d = self.d_encoder.encoder.layer1(d)
+
+        att = self.attention[1](rgb, d)
+        att = self.dropout(att)
+        fused_feats.append(att)
+
+        rgb = self.rgb_encoder.encoder.layer2(rgb)
+        d = self.d_encoder.encoder.layer2(d)
+
+        att = self.attention[2](rgb, d)
+        att = self.dropout(att)
+        fused_feats.append(att)
+
+        rgb = self.rgb_encoder.encoder.layer3(rgb)
+        d = self.d_encoder.encoder.layer3(d)
+
+        att = self.attention[3](rgb, d)
+        att = self.dropout(att)
+        fused_feats.append(att)
+
+        rgb = self.rgb_encoder.encoder.layer4(rgb)
+        d = self.d_encoder.encoder.layer4(d)
+
+        att = self.attention[4](rgb, d)
+        att = self.dropout(att)
+        fused_feats.append(att)
+
+        x = self.decoder(fused_feats)
 
         return x
 
     def get_optimizer_groups(self):
-        rgb_encoder = [p for name, p in self.rgb_encoder.encoder.named_parameters() if "conv1" not in name]
-        d_encoder = [p for name, p in self.d_encoder.encoder.named_parameters() if "conv1" not in name]
-
-        decoder = list(self.decoder.parameters())
-        attention = list(self.attention.parameters())
-
         return [
-            {"params": self.rgb_encoder.encoder.conv1.parameters(), "lr": 5e-4},
-            {"params": self.d_encoder.encoder.conv1.parameters(), "lr": 5e-3},
-            {"params": rgb_encoder, "lr": 1e-4},
-            {"params": d_encoder, "lr": 1e-3},
-            {"params": self.rgb_norms.parameters(), "lr": 1e-3},
-            {"params": self.d_norms.parameters(), "lr": 1e-3},
-            {"params": attention, "lr": 1e-3},
-            {"params": decoder, "lr": 5e-3},
+            {"params": self.rgb_encoder.encoder.parameters(), "lr": 1e-4},
+            {"params": self.d_encoder.encoder.parameters(), "lr": 3e-4},
+            {"params": self.attention.parameters(), "lr": 3e-4},
+            {"params": self.decoder.parameters(), "lr": 5e-4},
         ]
     
     def _adapt_input_channels(self, d_channels):
@@ -86,4 +119,4 @@ if __name__ == "__main__":
     # Test the forward pass with a dummy input
     dummy_input = torch.randn(1, 4, 224, 224)  # Batch size of 1, 4 channels (RGB + Depth), 224x224 image
     output = model(dummy_input)
-    print(output.shape)  # Should be [1, num_classes, H, W]
+    print([out.shape for out in output])  # Should be [1, num_classes, H, W]

@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 
-from models.resnet50 import ResNet50Decoder, ResNet50Encoder
+from models.resnet50 import ResNet50Encoder
+from models.unet import UNetDecoder
 
 
 class LateFusion(nn.Module):
@@ -9,13 +10,13 @@ class LateFusion(nn.Module):
         super().__init__()
 
         self.rgb_encoder = ResNet50Encoder()
-        self.d_encoder = ResNet50Encoder(dropout=dropout)
+        self.d_encoder = ResNet50Encoder()
         self._adapt_input_channels(d_channels)
         
         self.rgb_norms = nn.ModuleList([nn.BatchNorm2d(ch) for ch in self.rgb_encoder.out_channels])
         self.d_norms = nn.ModuleList([nn.BatchNorm2d(ch) for ch in self.d_encoder.out_channels])
 
-        self.decoder = ResNet50Decoder(num_channels=num_classes, dropout=dropout)
+        self.decoder = UNetDecoder(encoder_channels=self.d_encoder.out_channels, num_classes=num_classes)
 
     def forward(self, x):
         rgb = x[:, :3, :, :]
@@ -28,24 +29,18 @@ class LateFusion(nn.Module):
         d_feats_norm = [norm(feat) for feat, norm in zip(d_feats, self.d_norms)]
         x = [r + h for r, h in zip(rgb_feats_norm, d_feats_norm)]
 
-        x = self.decoder(x[-1], x[:-1])
+        x = self.decoder(x)
 
         return x
     
     def get_optimizer_groups(self):
-        rgb_encoder = [p for name, p in self.rgb_encoder.encoder.named_parameters() if "conv1" not in name]
-        d_encoder = [p for name, p in self.d_encoder.encoder.named_parameters() if "conv1" not in name]
-
-        decoder = list(self.decoder.parameters())
+        attention_parameters = list(self.rgb_norms.parameters()) + list(self.d_norms.parameters())
 
         return [
-            {"params": self.rgb_encoder.encoder.conv1.parameters(), "lr": 5e-4},
-            {"params": self.d_encoder.encoder.conv1.parameters(), "lr": 5e-3},
-            {"params": rgb_encoder, "lr": 1e-4},
-            {"params": d_encoder, "lr": 1e-3},
-            {"params": self.rgb_norms.parameters(), "lr": 1e-3},
-            {"params": self.d_norms.parameters(), "lr": 1e-3},
-            {"params": decoder, "lr": 5e-3},
+            {"params": self.rgb_encoder.encoder.parameters(), "lr": 1e-4},
+            {"params": self.d_encoder.encoder.parameters(), "lr": 3e-4},
+            {"params": attention_parameters, "lr": 3e-4},
+            {"params": self.decoder.parameters(), "lr": 5e-4},
         ]
     
     def _adapt_input_channels(self, d_channels):
@@ -81,4 +76,4 @@ if __name__ == "__main__":
     # Example input tensor with batch size 1, 4 channels (RGB + Depth), and 224x224 spatial dimensions
     example_input = torch.randn(1, 4, 224, 224)
     output = model(example_input)
-    print(output.shape)  # Should match the expected output shape
+    print([out.shape for out in output])  # Should match the expected output shape

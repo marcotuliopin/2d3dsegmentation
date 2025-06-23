@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 
-from models.resnet50 import ResNet50Decoder, ResNet50Encoder
+from models.resnet50 import ResNet50Encoder
+from models.unet import UNetDecoder
 
 
 class RBGOnly(nn.Module):
@@ -13,24 +14,21 @@ class RBGOnly(nn.Module):
         super().__init__()
 
         self.encoder = ResNet50Encoder()
-        self.decoder = ResNet50Decoder(num_channels=num_classes, dropout=dropout)
+        self.decoder = UNetDecoder(encoder_channels=self.encoder.out_channels, num_classes=num_classes)
 
     def forward(self, x):
         x = self.encoder(x)
-        x = self.decoder(x[-1], x[:-1])
+        x = self.decoder(x)
         return x
 
     def get_optimizer_groups(self):
-        first_layer = list(self.encoder.encoder.conv1.parameters())
-        encoder = [p for name, p in self.encoder.encoder.named_parameters() if "conv1" not in name]
+        encoder = list(self.encoder.encoder.parameters())
         decoder = list(self.decoder.parameters())
 
         return [
-            {"params": first_layer, "lr": 5e-3},        
-            {"params": encoder, "lr": 5e-4},
-            {"params": decoder, "lr": 5e-3},
+            {"params": encoder, "lr": 1e-4},
+            {"params": decoder, "lr": 5e-4},
         ]
-
 
 if __name__ == "__main__":
     # Example usage

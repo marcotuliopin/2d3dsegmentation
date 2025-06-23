@@ -9,7 +9,6 @@ class NYUv2(Dataset):
     def __init__(
         self,
         root: str,
-        seed: int = 42,
         train: bool = True,
         rgb_transform=None,
         seg_transform=None,
@@ -20,7 +19,6 @@ class NYUv2(Dataset):
     ):
         super().__init__()
         self.root = root
-        self.seed = seed
 
         self.rgb_transform = rgb_transform
         self.seg_transform = seg_transform
@@ -51,7 +49,9 @@ class NYUv2(Dataset):
             imgs.append(img)
         
         if self.hha_transform is not None:
-            img = Image.open(os.path.join(folder("hha"), self._files[index]))
+            file_index = self._files[index].split('.')[0][1:]
+            hha_filename = f"{file_index}_hha.png"
+            img = Image.open(os.path.join(folder("hha"), hha_filename))
             imgs.append(img)
         
         imgs = self._augment(imgs) 
@@ -63,12 +63,15 @@ class NYUv2(Dataset):
     
     def _augment(self, imgs):
         if self.sync_transform is not None:
-            imgs = self.sync_transform(
-                imgs[0],
-                imgs[1],
-                imgs[2] if self.depth_transform is not None else None,
-                imgs[2] if self.hha_transform is not None else None,
-            )
+            if len(imgs) > 2:
+                imgs = self.sync_transform(
+                    imgs[0],
+                    imgs[1],
+                    imgs[2] if self.depth_transform is not None else None,
+                    imgs[2] if self.hha_transform is not None else None,
+                )
+            else:
+                imgs = self.sync_transform(imgs[0], imgs[1])
 
         if self.rgb_transform is not None:
             imgs[0] = self.rgb_transform(imgs[0])

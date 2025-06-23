@@ -2,16 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# Frequency weights for different classes in the NYUv2 dataset
-nyuv2_inv_freq = [0.11756749, 0.58930845, 3.86320268, 1.42978694, 0.61211152,
-        0.21107389, 0.14174245, 0.16072167, 1.03913962, 0.87946776,
-        0.68799929, 3.74469765, 0.08783193, 0.43534866]
-
 
 class FocalLoss(nn.Module):
-    def __init__(self, gamma=2.0, reduction=None, ignore_index=255):
+    def __init__(self, alpha, gamma=2.0, reduction=None, ignore_index=255):
         super().__init__()
-        self.alpha = torch.tensor(nyuv2_inv_freq)
+        self.alpha = torch.tensor(alpha)
         self.gamma = gamma
         self.reduction = reduction
         self.ignore_index = ignore_index

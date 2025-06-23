@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -27,6 +28,16 @@ nyuv2_weights_40 = [0.30905102, 0.47400618, 0.76580361, 1.01470766, 1.01692224, 
 2.2421258, 2.84667172, 1.0108517, 0.95267991, 1.19286297, 1.98246947,
 0.96705342, 2.92167463, 1.39214749, 2.25843292, 3.08181635, 0.93553294,
 2.69752997, 1.03677536, 1.79582991, 1.50435407]
+
+
+alpha = [0.09551253169775009, 0.22468185424804688, 0.6091485619544983, 1.021821141242981, 
+2.075077533721924, 5.612934112548828, 1.1021182537078857, 0.4463225305080414, 1.0296317338943481, 
+0.935192346572876, 1.0341309309005737, 1.3176853656768799, 9.84648323059082, 0.31426239013671875, 
+1.074903130531311, 1.6628875732421875, 0.9075990915298462, 0.586455225944519, 1.5414730310440063, 
+3.2250051498413086, 1.4229220151901245, 3.930185317993164, 6.180789470672607, 8.53618335723877, 
+0.8752219080924988, 2.083346128463745, 7.644067287445068, 2.589294672012329, 3.727135181427002, 
+6.819945335388184, 5.100519180297852, 7.276668071746826, 9.497591972351074, 5.027128219604492, 
+3.845106363296509, 1.9380747079849243, 2.2630813121795654, 8.103540420532227, 2.460158109664917, 7.841001033782959]
 
 
 def get_model(name, **kwargs):
@@ -58,6 +69,7 @@ def get_loss_function(name: str, loss_config: dict, ignore_index: int, device: s
     elif name == "focal_loss":
         return FocalLoss(
             gamma=loss_config["gamma"],
+            alpha=alpha,
             ignore_index=ignore_index,
             reduction=loss_config["reduction"]
         )
@@ -73,16 +85,12 @@ def get_loss_function(name: str, loss_config: dict, ignore_index: int, device: s
 def get_optimizer(optimizer_name: str, model_params: dict, optimizer_config: dict, param_groups: list):
     if optimizer_name == "adam":
         return torch.optim.AdamW(
-            model_params,
-            betas=optimizer_config["betas"],
-            eps=optimizer_config["eps"],
-            lr=optimizer_config["learning_rate"],
+            param_groups,
             weight_decay=optimizer_config["weight_decay"],
         )
     elif optimizer_name == "sgd":
         return torch.optim.SGD(
             param_groups,
-            lr=optimizer_config["learning_rate"],
             momentum=optimizer_config["momentum"],
             weight_decay=optimizer_config["weight_decay"],
             nesterov=optimizer_config["nesterov"]
@@ -108,8 +116,14 @@ def get_scheduler(scheduler_name, optimizer, scheduler_config, batch_size, num_e
     elif scheduler_name == "polynomial":
         return torch.optim.lr_scheduler.PolynomialLR(
             optimizer,
-            total_iters=(num_epochs * len_dataloader) // batch_size,
+            total_iters=num_epochs,
             power=scheduler_config["power"],
+        )
+    elif scheduler_name == "cosine":
+        return torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=len_dataloader * num_epochs,
+            eta_min=scheduler_config["eta_min"],
         )
     else:
         raise ValueError(f"Unknown scheduler: {scheduler_name}")

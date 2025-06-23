@@ -2,7 +2,8 @@ import torch
 import torch.nn as nn
 
 from models.attention_modules import CBAM
-from models.resnet50 import ResNet50Decoder, ResNet50Encoder
+from models.resnet50 import ResNet50Encoder
+from models.unet import UNetDecoder
 
 
 class AttentionEarlyFusionHHA(nn.Module):
@@ -16,31 +17,48 @@ class AttentionEarlyFusionHHA(nn.Module):
         self.encoder = ResNet50Encoder()
         self._adapt_input_channels()
 
-        self.decoder = ResNet50Decoder(num_channels=num_classes, dropout=dropout)
+        self.decoder = UNetDecoder(encoder_channels=self.encoder.out_channels, num_classes=num_classes)
 
         self.attention = nn.ModuleList([
-            CBAM(in_channels=256, reduction_ratio=8),
-            CBAM(in_channels=512, reduction_ratio=8),
             CBAM(in_channels=1024, reduction_ratio=8),
             CBAM(in_channels=2048, reduction_ratio=8)
         ])
 
     def forward(self, x):
-        x = self.encoder(x)
-        x = [self.attention[i](feat) for i, feat in enumerate(x)]
-        x = self.decoder(x[-1], x[:-1])
-        return x
+        features = []
+        x = self.encoder.encoder.conv1(x)
+        x = self.encoder.encoder.bn1(x)
+        x = self.encoder.encoder.relu(x)
+        features.append(x)
+
+        x = self.encoder.encoder.maxpool(x)
+
+        x = self.encoder.encoder.layer1(x)
+        features.append(x)
+
+        x = self.encoder.encoder.layer2(x)
+        features.append(x)
+
+        x = self.encoder.encoder.layer3(x)
+        x = self.attention[0](x)
+        features.append(x)
+
+        x = self.encoder.encoder.layer4(x)
+        x = self.attention[1](x)
+        features.append(x)
+
+        output = self.decoder(features)
+        return output
 
     def get_optimizer_groups(self):
-        first_layer = list(self.encoder.encoder.conv1.parameters())
-        encoder = [p for name, p in self.encoder.encoder.named_parameters() if "conv1" not in name]
+        encoder = list(self.encoder.encoder.parameters())
         decoder = list(self.decoder.parameters())
+        attention_parameters = list(self.attention.parameters())
 
         return [
-            {"params": first_layer, "lr": 5e-3},        
-            {"params": encoder, "lr": 5e-4},
-            {"params": decoder, "lr": 5e-3},
-            {"params": self.attention.parameters(), "lr": 5e-3}
+            {"params": encoder, "lr": 1e-4},
+            {"params": attention_parameters, "lr": 3e-4},
+            {"params": decoder, "lr": 5e-4},
         ]
 
     def _adapt_input_channels(self):

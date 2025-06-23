@@ -51,7 +51,7 @@ def parse_args(config):
 def main(args, config):
     # Configure CUDA
     device = configure_device()
-    set_seed(args.seed)
+    # set_seed(args.seed)
 
     # Make sure the experiment exists
     exp_dir = os.path.join(config["output"]["directories"]["checkpoints"], args.experiment_name)
@@ -122,16 +122,16 @@ def main(args, config):
         for i in range(exp_config["num_classes"]):
             f.write(f"  Classe {i}: {results['class_iou'][i]:.4f}\n")
 
-    vis_path = os.path.join(plots_dir, "predictions.png")
-    visualize_predictions(
-        model,
-        test_loader,
-        device,
-        num_samples=4,
-        save_path=vis_path,
-        rgb_only=exp_config["model"]["rgb_only"],
-        use_hha=exp_config["model"]["use_hha"],
-    )
+    # vis_path = os.path.join(plots_dir, "predictions.png")
+    # visualize_predictions(
+    #     model,
+    #     test_loader,
+    #     device,
+    #     num_samples=4,
+    #     save_path=vis_path,
+    #     rgb_only=exp_config["model"]["rgb_only"],
+    #     use_hha=exp_config["model"]["use_hha"],
+    # )
 
 
 def compute_segmentation_metrics(preds, labels, num_classes, ignore_index=255):

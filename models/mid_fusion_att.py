@@ -1,35 +1,28 @@
 import torch
 import torch.nn as nn
 
-from models.attention_modules import CAM
-from models.resnet50 import ResNet50Decoder, ResNet50Encoder
+from models.attention_modules import DoubleCMA
+from models.resnet50 import ResNet50Encoder
+from models.unet import UNetDecoder
 
 
 class AttentionMidFusion(nn.Module):
-    def __init__(self, num_classes, dropout=0.3, d_channels=1):
+    def __init__(self, num_classes, dropout=0.3, d_channels=3):
         super().__init__()
 
         self.rgb_encoder = ResNet50Encoder()
-        self.d_encoder = ResNet50Encoder(dropout=dropout)
+        self.d_encoder = ResNet50Encoder()
         self._adapt_input_channels(d_channels)
-        
-        self.rgb_norms = nn.ModuleList([nn.BatchNorm2d(ch) for ch in self.rgb_encoder.out_channels])
-        self.d_norms = nn.ModuleList([nn.BatchNorm2d(ch) for ch in self.d_encoder.out_channels])
 
-        self.rgb_modulator = nn.ModuleList([
-            CAM(in_channels=64, reduction_ratio=8),
-            CAM(in_channels=256, reduction_ratio=8),
-            CAM(in_channels=512, reduction_ratio=8),
-            CAM(in_channels=1024, reduction_ratio=8)
-        ])
-        self.d_modulator = nn.ModuleList([
-            CAM(in_channels=64, reduction_ratio=8),
-            CAM(in_channels=256, reduction_ratio=8),
-            CAM(in_channels=512, reduction_ratio=8),
-            CAM(in_channels=1024, reduction_ratio=8)
+        self.modulator = nn.ModuleList([
+            DoubleCMA(in_channels=64, reduction_ratio=8),
+            DoubleCMA(in_channels=256, reduction_ratio=8),
+            DoubleCMA(in_channels=512, reduction_ratio=8),
+            DoubleCMA(in_channels=1024, reduction_ratio=8),
+            DoubleCMA(in_channels=2048, reduction_ratio=8)
         ])
 
-        self.decoder = ResNet50Decoder(num_channels=num_classes, dropout=dropout)
+        self.decoder = UNetDecoder(encoder_channels=self.d_encoder.out_channels, num_classes=num_classes)
 
     def forward(self, x):
         rgb = x[:, :3, :, :]
@@ -41,71 +34,64 @@ class AttentionMidFusion(nn.Module):
         rgb = self.rgb_encoder.encoder.conv1(rgb)
         rgb = self.rgb_encoder.encoder.bn1(rgb)
         rgb = self.rgb_encoder.encoder.relu(rgb)
-        rgb = self.rgb_encoder.encoder.maxpool(rgb)
-        
+
         d = self.d_encoder.encoder.conv1(d)
         d = self.d_encoder.encoder.bn1(d)
         d = self.d_encoder.encoder.relu(d)
-        d = self.d_encoder.encoder.maxpool(d)
 
-        rgb = self.rgb_modulator[0](rgb, d)
-        d = self.d_modulator[0](d, rgb)
+        rgb, d = self.modulator[0](rgb, d)
+
+        rgb_feats.append(rgb)
+        d_feats.append(d)
+
+        rgb = self.rgb_encoder.encoder.maxpool(rgb)
+        d = self.d_encoder.encoder.maxpool(d)
 
         rgb = self.rgb_encoder.encoder.layer1(rgb)
         d = self.d_encoder.encoder.layer1(d)
+
+        rgb, d = self.modulator[1](rgb, d)
+
         rgb_feats.append(rgb)
         d_feats.append(d)
-
-        rgb = self.rgb_modulator[1](rgb, d)
-        d = self.d_modulator[1](d, rgb)
 
         rgb = self.rgb_encoder.encoder.layer2(rgb)
         d = self.d_encoder.encoder.layer2(d)
+
+        rgb, d = self.modulator[2](rgb, d)
+
         rgb_feats.append(rgb)
         d_feats.append(d)
-
-        rgb = self.rgb_modulator[2](rgb, d)
-        d = self.d_modulator[2](d, rgb)
 
         rgb = self.rgb_encoder.encoder.layer3(rgb)
         d = self.d_encoder.encoder.layer3(d)
+
+        rgb, d = self.modulator[3](rgb, d)
+
         rgb_feats.append(rgb)
         d_feats.append(d)
-
-        rgb = self.rgb_modulator[3](rgb, d)
-        d = self.d_modulator[3](d, rgb)
 
         rgb = self.rgb_encoder.encoder.layer4(rgb)
         d = self.d_encoder.encoder.layer4(d)
+
+        rgb, d = self.modulator[4](rgb, d)
+
         rgb_feats.append(rgb)
         d_feats.append(d)
-
-        rgb_feats_norm = [norm(feat) for feat, norm in zip(rgb_feats, self.rgb_norms)]
-        d_feats_norm = [norm(feat) for feat, norm in zip(d_feats, self.d_norms)]
-        x = [r + h for r, h in zip(rgb_feats_norm, d_feats_norm)]
-
-        x = self.decoder(x[-1], x[:-1])
+        
+        x = [r + h for r, h in zip(rgb_feats, d_feats)]
+        x = self.decoder(x)
 
         return x
     
     def get_optimizer_groups(self):
-        rgb_encoder = [p for name, p in self.rgb_encoder.encoder.named_parameters() if "conv1" not in name]
-        d_encoder = [p for name, p in self.d_encoder.encoder.named_parameters() if "conv1" not in name]
-        rgb_modulator = list(self.rgb_modulator.parameters())
-        d_modulator = list(self.d_modulator.parameters())
-
-        decoder = list(self.decoder.parameters())
+        attention_parameters = list(self.modulator.parameters())
 
         return [
-            {"params": self.rgb_encoder.encoder.conv1.parameters(), "lr": 5e-4},
-            {"params": self.d_encoder.encoder.conv1.parameters(), "lr": 5e-3},
-            {"params": rgb_encoder, "lr": 1e-4},
-            {"params": d_encoder, "lr": 1e-3},
-            {"params": rgb_modulator, "lr": 1e-3},
-            {"params": d_modulator, "lr": 1e-3},
-            {"params": self.rgb_norms.parameters(), "lr": 1e-3},
-            {"params": self.d_norms.parameters(), "lr": 1e-3},
-            {"params": decoder, "lr": 5e-3},
+            {"params": self.rgb_encoder.encoder.parameters(), "lr": 1e-4},
+            {"params": self.d_encoder.encoder.parameters(), "lr": 3e-4},
+            {"params": attention_parameters, "lr": 3e-4},
+            {"params": self.decoder.parameters(), "lr": 5e-4},
         ]
     
     def _adapt_input_channels(self, d_channels):
@@ -131,3 +117,14 @@ class AttentionMidFusion(nn.Module):
                 new_conv_d.bias.data = first_conv_d.bias.data.clone()
 
         self.d_encoder.encoder.conv1 = new_conv_d
+
+
+if __name__ == "__main__":
+    # Example usage
+    model = AttentionMidFusion(num_classes=13, d_channels=3)
+    print(model)
+    
+    # Test the model with dummy input
+    dummy_input = torch.randn(1, 6, 224, 224)  # Batch size of 1, 6 channels (3 RGB + 3 Depth)
+    output = model(dummy_input)
+    print([out.shape for out in output])  # Should match the expected output shape

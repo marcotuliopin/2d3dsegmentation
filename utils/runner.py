@@ -1,5 +1,6 @@
 import time
 import torch
+import torch.nn.functional as F
 from tqdm import tqdm
 
 
@@ -10,12 +11,14 @@ class Runner:
         device,
         optimizer=None,
         criterion=None,
+        scheduler=None,
         rgb_only=False,
         use_hha=False,
     ):
         self.model = model
         self.optimizer = optimizer
         self.criterion = criterion
+        self.scheduler = scheduler
         self.device = device
         self.rgb_only = rgb_only
         self.use_hha = use_hha
@@ -37,17 +40,25 @@ class Runner:
             images = images.to(self.device)
             masks = masks.to(self.device)
 
-            self.optimizer.zero_grad()
             outputs = self.model(images)
-            if isinstance(outputs, dict):
-                outputs = outputs["out"]
+            total_loss = 0
+            for _, output in enumerate(outputs):
+                if output.size() != masks.size():
+                    output = F.interpolate(
+                        output, size=masks.shape[-2:], 
+                        mode='bilinear', align_corners=False
+                    )
+                
+                loss = self.criterion(output, masks)
+                total_loss += loss
+            avg_loss = total_loss / len(outputs)
 
-            loss = self.criterion(outputs, masks)
             running_loss += loss.item()
 
-            loss.backward()
-
+            self.optimizer.zero_grad()
+            avg_loss.backward()
             self.optimizer.step()
+            self.scheduler.step()
 
         loss = running_loss / len(loader)
         return loss
@@ -73,8 +84,6 @@ class Runner:
                 masks = masks.to(self.device)
 
                 outputs = self.model(images)
-                if isinstance(outputs, dict):
-                    outputs = outputs["out"]
 
                 loss = self.criterion(outputs, masks)
                 running_loss += loss.item()
@@ -115,9 +124,7 @@ class Runner:
                 images = images.to(self.device)
                 masks = masks.to(self.device)
 
-                outputs = self.model(images)
-                if isinstance(outputs, dict):
-                    outputs = outputs["out"]
+                outputs = self.model(images)[-1] # Get the last output for testing
 
                 preds = torch.argmax(outputs, dim=1)
 

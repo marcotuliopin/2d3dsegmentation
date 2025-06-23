@@ -35,29 +35,25 @@ def get_dataloader(
     seed: int = 42,
     image_size: tuple = (height0, width0),
 ):
-    generator = torch.Generator().manual_seed(seed)
-
     if train:
         dataset = NYUv2(
             data_root,
-            seed=seed,
             train=True,
             rgb_transform=train_rgb_transform(),
             seg_transform=train_seg_transform(),
             depth_transform=train_depth_transform() if not rgb_only and not use_hha else None,
             hha_transform=train_hha_transform() if not rgb_only and use_hha else None,
-            sync_transform=SyncTransform(*image_size),
+            sync_transform=SyncTransformTrain(*image_size),
         )
     else:
         dataset = NYUv2(
             data_root,
-            seed=seed,
             train=False,
-            rgb_transform=test_rgb_transform(*image_size),
-            seg_transform=test_seg_transform(*image_size),
-            depth_transform=test_depth_transform(*image_size) if not rgb_only and not use_hha else None,
-            hha_transform=test_hha_transform(*image_size) if not rgb_only and use_hha else None,
-            sync_transform=None,
+            rgb_transform=test_rgb_transform(),
+            seg_transform=test_seg_transform(),
+            depth_transform=test_depth_transform() if not rgb_only and not use_hha else None,
+            hha_transform=test_hha_transform() if not rgb_only and use_hha else None,
+            sync_transform=SyncTransformTest(*image_size),
         )
 
     if split_val and train:
@@ -70,14 +66,13 @@ def get_dataloader(
         val_dataset.dataset.seg_transform = test_seg_transform()
         val_dataset.dataset.depth_transform = test_depth_transform() if not rgb_only and not use_hha else None
         val_dataset.dataset.hha_transform = test_hha_transform() if not rgb_only and use_hha else None
-        val_dataset.dataset.sync_transform = None
+        val_dataset.dataset.sync_transform = SyncTransformTest(*image_size)
 
         train_loader = DataLoader(
             train_dataset,
             batch_size=batch_size,
             shuffle=True,
             num_workers=num_workers,
-            generator=generator,
             worker_init_fn=worker_init_fn,
         )
         val_loader = DataLoader(
@@ -94,15 +89,12 @@ def get_dataloader(
         batch_size=batch_size,
         shuffle=train,
         num_workers=num_workers,
-        generator=generator,
         worker_init_fn=worker_init_fn,
     )
 
 
 def worker_init_fn(worker_id):
     seed = (torch.initial_seed() + worker_id) % 2**32
-    np.random.seed(seed)
-    random.seed(seed)
     np.random.seed(seed)
     random.seed(seed)
     torch.manual_seed(seed)
@@ -123,7 +115,7 @@ def train_seg_transform():
     return T.Compose(
         [
             T.ToTensor(),
-            TensorToLongMask(),  # Convert to long type for segmentation masks
+            TensorToLongMask(),
         ]
     )
 
@@ -146,52 +138,66 @@ def train_hha_transform():
     )
 
 
-def test_rgb_transform(height=height0, width=width0):
+def test_rgb_transform():
     return T.Compose(
         [
-            T.CenterCrop((height, width)),
             T.ToTensor(),
             T.Normalize(mean=imagenet_mean, std=imagenet_std),
         ]
     )
 
 
-def test_seg_transform(height=height0, width=width0):
+def test_seg_transform():
     return T.Compose(
         [
-            T.CenterCrop((height, width)),
             T.ToTensor(),
-            TensorToLongMask(),  # Convert to long type for segmentation masks
+            TensorToLongMask(),
         ]
     )
 
 
-def test_depth_transform(height=height0, width=width0):
+def test_depth_transform():
     return T.Compose(
         [
-            T.CenterCrop((height, width)),
             DepthToTensor(),
             T.Normalize(mean=[nyuv2_depth_mean], std=[nyuv2_depth_std])
         ]
     )
 
 
-def test_hha_transform(height=height0, width=width0):
+def test_hha_transform():
     return T.Compose(
         [
-            T.CenterCrop((height, width)),
             T.ToTensor(),
             T.Normalize(mean=nyuv2_hha_mean, std=nyuv2_hha_std),
         ]
     )
 
 
-class SyncTransform:
-    def __init__(self, height, width):
+class SyncTransformTrain:
+    def __init__(self, height, width, scale_range=(1.0, 1.4), apply_scaling=True):
         self.height = height
         self.width = width
+        self.scale_range = scale_range
+        self.apply_scaling = apply_scaling
 
     def __call__(self, rgb_img, seg_mask, depth_img=None, hha_img=None):
+        if self.apply_scaling:
+            scale_factor = random.uniform(self.scale_range[0], self.scale_range[1])
+            
+            orig_w, orig_h = rgb_img.size # PIL Image size is (width, height)
+            
+            # Calculate new size
+            new_h = int(round(orig_h * scale_factor))
+            new_w = int(round(orig_w * scale_factor))
+            
+            rgb_img = TF.resize(rgb_img, (new_h, new_w))
+            seg_mask = TF.resize(seg_mask, (new_h, new_w), interpolation=T.InterpolationMode.NEAREST)
+            if depth_img is not None:
+                depth_img = TF.resize(depth_img, (new_h, new_w), interpolation=T.InterpolationMode.NEAREST)
+            if hha_img is not None:
+                hha_img = TF.resize(hha_img, (new_h, new_w))
+
         i, j, h, w = T.RandomCrop.get_params(rgb_img, (self.height, self.width))
         rgb_img = TF.crop(rgb_img, i, j, h, w)
         seg_mask = TF.crop(seg_mask, i, j, h, w)
@@ -207,6 +213,30 @@ class SyncTransform:
                 depth_img = TF.hflip(depth_img)
             if hha_img is not None:
                 hha_img = TF.hflip(hha_img)
+
+        imgs = [rgb_img, seg_mask]
+        if depth_img is not None:
+            imgs.append(depth_img)
+        if hha_img is not None:
+            imgs.append(hha_img)
+
+        return imgs
+
+
+class SyncTransformTest:
+    def __init__(self, height, width):
+        self.height = height
+        self.width = width
+
+    def __call__(self, rgb_img, seg_mask, depth_img=None, hha_img=None):
+        # Center crop or resize to target size for testing
+        rgb_img = TF.resize(rgb_img, (self.height, self.width))
+        seg_mask = TF.resize(seg_mask, (self.height, self.width), interpolation=T.InterpolationMode.NEAREST)
+        
+        if depth_img is not None:
+            depth_img = TF.resize(depth_img, (self.height, self.width), interpolation=T.InterpolationMode.NEAREST)
+        if hha_img is not None:
+            hha_img = TF.resize(hha_img, (self.height, self.width))
 
         imgs = [rgb_img, seg_mask]
         if depth_img is not None:

@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 
-from models.resnet50 import ResNet50Decoder, ResNet50Encoder
+from models.resnet50 import ResNet50Encoder
+from models.unet import UNetDecoder
 
 
 class EarlyFusionD(nn.Module):
@@ -15,22 +16,20 @@ class EarlyFusionD(nn.Module):
         self.encoder = ResNet50Encoder()
         self._adapt_input_channels()
 
-        self.decoder = ResNet50Decoder(num_channels=num_classes, dropout=dropout)
+        self.decoder = UNetDecoder(encoder_channels=self.encoder.out_channels, num_classes=num_classes)
 
     def forward(self, x):
         x = self.encoder(x)
-        x = self.decoder(x[-1], x[:-1])
+        x = self.decoder(x)
         return x
 
     def get_optimizer_groups(self):
-        first_layer = list(self.encoder.encoder.conv1.parameters())
-        encoder = [p for name, p in self.encoder.encoder.named_parameters() if "conv1" not in name]
+        encoder = list(self.encoder.encoder.parameters())
         decoder = list(self.decoder.parameters())
 
         return [
-            {"params": first_layer, "lr": 5e-3},        
-            {"params": encoder, "lr": 5e-4},
-            {"params": decoder, "lr": 5e-3},
+            {"params": encoder, "lr": 1e-4},
+            {"params": decoder, "lr": 5e-4},
         ]
 
     def _adapt_input_channels(self):
@@ -63,4 +62,4 @@ if __name__ == "__main__":
     # Test the forward pass with a dummy input
     dummy_input = torch.randn(1, 4, 224, 224)  # Batch size of 1, 4 channels (RGB + Depth), 224x224 image
     output = model(dummy_input)
-    print(output.shape)  # Should be [1, num_classes, H, W]
+    print([out.shape for out in output])
