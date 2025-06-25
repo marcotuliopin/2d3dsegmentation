@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 
-from models.attention_modules import CBAM
 from models.resnet50 import ResNet50Encoder
 from models.unet import UNetDecoder
 
@@ -19,10 +18,10 @@ class AttentionEarlyFusionHHA(nn.Module):
 
         self.decoder = UNetDecoder(encoder_channels=self.encoder.out_channels, num_classes=num_classes)
 
-        self.attention = nn.ModuleList([
-            CBAM(in_channels=1024, reduction_ratio=8),
-            CBAM(in_channels=2048, reduction_ratio=8)
-        ])
+        # self.attention = nn.ModuleList([
+        #     CBAM(in_channels=1024, reduction_ratio=8),
+        #     CBAM(in_channels=2048, reduction_ratio=8)
+        # ])
 
     def forward(self, x):
         features = []

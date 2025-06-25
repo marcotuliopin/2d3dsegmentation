@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from models.attention_modules import GC_FFM
+from models.attention_modules import SA_FM
 from models.resnet50 import ResNet50Encoder
 from models.unet import UNetDecoder
 
@@ -15,11 +15,11 @@ class AttentionLateFusion(nn.Module):
         self._adapt_input_channels(d_channels)
         
         self.attention = nn.ModuleList([
-            GC_FFM(in_channels=64),
-            GC_FFM(in_channels=256),
-            GC_FFM(in_channels=512),
-            GC_FFM(in_channels=1024),
-            GC_FFM(in_channels=2048)
+            SA_FM(in_channels=64),
+            SA_FM(in_channels=256),
+            SA_FM(in_channels=512),
+            SA_FM(in_channels=1024),
+            SA_FM(in_channels=2048)
         ])
 
         self.decoder = UNetDecoder(encoder_channels=self.d_encoder.out_channels, num_classes=num_classes)
@@ -30,7 +30,8 @@ class AttentionLateFusion(nn.Module):
         rgb = x[:, :3, :, :]
         d = x[:, 3:, :, :]
 
-        fused_feats = []
+        rgb_feats = []
+        d_feats = []
 
         rgb = self.rgb_encoder.encoder.conv1(rgb)
         rgb = self.rgb_encoder.encoder.bn1(rgb)
@@ -40,9 +41,8 @@ class AttentionLateFusion(nn.Module):
         d = self.d_encoder.encoder.bn1(d)
         d = self.d_encoder.encoder.relu(d)
 
-        att = self.attention[0](rgb, d)
-        att = self.dropout(att)
-        fused_feats.append(att)
+        rgb_feats.append(rgb)
+        d_feats.append(d)
 
         rgb = self.rgb_encoder.encoder.maxpool(rgb)
         d = self.d_encoder.encoder.maxpool(d)
@@ -50,30 +50,34 @@ class AttentionLateFusion(nn.Module):
         rgb = self.rgb_encoder.encoder.layer1(rgb)
         d = self.d_encoder.encoder.layer1(d)
 
-        att = self.attention[1](rgb, d)
-        att = self.dropout(att)
-        fused_feats.append(att)
+        rgb_feats.append(rgb)
+        d_feats.append(d)
 
         rgb = self.rgb_encoder.encoder.layer2(rgb)
         d = self.d_encoder.encoder.layer2(d)
 
-        att = self.attention[2](rgb, d)
-        att = self.dropout(att)
-        fused_feats.append(att)
+        rgb_feats.append(rgb)
+        d_feats.append(d)
 
         rgb = self.rgb_encoder.encoder.layer3(rgb)
         d = self.d_encoder.encoder.layer3(d)
 
-        att = self.attention[3](rgb, d)
-        att = self.dropout(att)
-        fused_feats.append(att)
+        rgb_feats.append(rgb)
+        d_feats.append(d)
 
         rgb = self.rgb_encoder.encoder.layer4(rgb)
         d = self.d_encoder.encoder.layer4(d)
 
-        att = self.attention[4](rgb, d)
-        att = self.dropout(att)
-        fused_feats.append(att)
+        rgb_feats.append(rgb)
+        d_feats.append(d)
+
+        fused_feats = []
+        for i in range(len(self.attention)):
+            rgb_feat = rgb_feats[i]
+            d_feat = d_feats[i]
+
+            fused_feat = self.attention[i](rgb_feat, d_feat)
+            fused_feats.append(fused_feat)
 
         x = self.decoder(fused_feats)
 

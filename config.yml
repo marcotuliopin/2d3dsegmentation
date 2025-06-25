@@ -56,7 +56,7 @@ model:
     use_hha: true
     rgb_only: false
     config:
-      dropout: 0.3
+      dropout: 0.2
       d_channels: 3
 
 output:

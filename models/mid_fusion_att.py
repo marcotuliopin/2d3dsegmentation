@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from models.attention_modules import DoubleCMA
+from models.attention_modules import SA_FM, DoubleCMA
 from models.resnet50 import ResNet50Encoder
 from models.unet import UNetDecoder
 
@@ -20,6 +20,14 @@ class AttentionMidFusion(nn.Module):
             DoubleCMA(in_channels=512, reduction_ratio=8),
             DoubleCMA(in_channels=1024, reduction_ratio=8),
             DoubleCMA(in_channels=2048, reduction_ratio=8)
+        ])
+
+        self.fusor = nn.ModuleList([
+            SA_FM(in_channels=64),
+            SA_FM(in_channels=256),
+            SA_FM(in_channels=512),
+            SA_FM(in_channels=1024),
+            SA_FM(in_channels=2048)
         ])
 
         self.decoder = UNetDecoder(encoder_channels=self.d_encoder.out_channels, num_classes=num_classes)
@@ -79,13 +87,20 @@ class AttentionMidFusion(nn.Module):
         rgb_feats.append(rgb)
         d_feats.append(d)
         
-        x = [r + h for r, h in zip(rgb_feats, d_feats)]
-        x = self.decoder(x)
+        fused_feats = []
+        for i in range(len(self.fusor)):
+            rgb_feat = rgb_feats[i]
+            d_feat = d_feats[i]
+
+            fused_feat = self.fusor[i](rgb_feat, d_feat)
+            fused_feats.append(fused_feat)
+
+        x = self.decoder(fused_feats)
 
         return x
     
     def get_optimizer_groups(self):
-        attention_parameters = list(self.modulator.parameters())
+        attention_parameters = list(self.modulator.parameters()) + list(self.fusor.parameters())
 
         return [
             {"params": self.rgb_encoder.encoder.parameters(), "lr": 1e-4},

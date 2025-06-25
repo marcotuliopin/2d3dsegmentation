@@ -12,7 +12,7 @@ from utils.dataloader import get_dataloader
 from utils.getters import get_latest_checkpoint, get_model
 from utils.runner import Runner
 from utils.training import CheckpointSaver
-from utils.visualization import plot_confusion_matrix, visualize_predictions
+from utils.visualization import plot_confusion_matrix
 
 
 def parse_args(config):

@@ -126,3 +126,55 @@ class GC_FFM(nn.Module):
         refined_feat = self.normalize(refined_feat)
         
         return refined_feat
+
+
+class SA_FM(nn.Module):
+    def __init__(self, in_channels, reduction_ratio=8):
+        super().__init__()
+        reduced_dim = in_channels // reduction_ratio
+        if reduced_dim < 1:
+            reduced_dim = in_channels
+
+        self.x_to_y_attention = nn.Sequential(
+            nn.Conv2d(in_channels * 2, reduced_dim, 3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(reduced_dim, 1, 1),
+            nn.Sigmoid()
+        )
+        
+        self.y_to_x_attention = nn.Sequential(
+            nn.Conv2d(in_channels * 2, reduced_dim, 3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(reduced_dim, 1, 1),
+            nn.Sigmoid()
+        )
+        
+        self.refine_conv = nn.Sequential(
+            nn.Conv2d(in_channels * 2, in_channels, 1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels, in_channels, 3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels, in_channels, 1),
+        )
+        
+        self.residual_conv = nn.Sequential(
+            nn.Conv2d(in_channels * 2, in_channels, 1),
+        )
+        self.normalize = nn.BatchNorm2d(in_channels)
+        
+    def forward(self, x, y):
+        joint_features = torch.cat([x, y], dim=1)
+
+        att_x_to_y = self.x_to_y_attention(joint_features)
+        att_y_to_x = self.y_to_x_attention(joint_features)
+        
+        x_enhanced = x * att_y_to_x
+        y_enhanced = y * att_x_to_y
+        
+        fused = torch.cat([x_enhanced, y_enhanced], dim=1)
+        output = self.refine_conv(fused)
+        residual = self.residual_conv(fused)
+        output = output + residual
+        output = self.normalize(output)
+
+        return output
