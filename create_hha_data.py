@@ -25,5 +25,5 @@ def create_hha_data(source_dir, target_dir):
             cv2.imwrite(target_path, hha_image)
             print(f"Saved HHA image to: {target_path}")
 
-# create_hha_data('data/nyuv2/data/depth/train', 'data/nyuv2/data/hha/train')
+create_hha_data('data/nyuv2/data/depth/train', 'data/nyuv2/data/hha/train')
 create_hha_data('data/nyuv2/data/depth/test', 'data/nyuv2/data/hha/test')

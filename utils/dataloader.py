@@ -59,6 +59,8 @@ def get_dataloader(
     if split_val and train:
         train_size = int(0.8 * len(dataset))
         val_size = len(dataset) - train_size
+
+        generator = torch.Generator().manual_seed(seed)
         train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size], generator=generator)
         val_dataset.dataset = copy(dataset)
 
@@ -183,21 +185,38 @@ class SyncTransformTrain:
 
     def __call__(self, rgb_img, seg_mask, depth_img=None, hha_img=None):
         if self.apply_scaling:
-            scale_factor = random.uniform(self.scale_range[0], self.scale_range[1])
-            
-            orig_w, orig_h = rgb_img.size # PIL Image size is (width, height)
-            
-            # Calculate new size
-            new_h = int(round(orig_h * scale_factor))
-            new_w = int(round(orig_w * scale_factor))
-            
-            rgb_img = TF.resize(rgb_img, (new_h, new_w))
-            seg_mask = TF.resize(seg_mask, (new_h, new_w), interpolation=T.InterpolationMode.NEAREST)
-            if depth_img is not None:
-                depth_img = TF.resize(depth_img, (new_h, new_w), interpolation=T.InterpolationMode.NEAREST)
-            if hha_img is not None:
-                hha_img = TF.resize(hha_img, (new_h, new_w))
+            rgb_img, seg_mask, depth_img, hha_img = self._apply_scaling(rgb_img, seg_mask, depth_img, hha_img)
 
+        rgb_img, seg_mask, depth_img, hha_img = self._apply_cropping(rgb_img, seg_mask, depth_img, hha_img)
+
+        if random.random() < 0.5:
+            rgb_img, seg_mask, depth_img, hha_img = self._apply_horizontal_flip(rgb_img, seg_mask, depth_img, hha_img)
+
+        imgs = [rgb_img, seg_mask]
+        if depth_img is not None:
+            imgs.append(depth_img)
+        if hha_img is not None:
+            imgs.append(hha_img)
+
+        return imgs
+
+    def _apply_scaling(self, rgb_img, seg_mask, depth_img=None, hha_img=None):
+        scale_factor = random.uniform(self.scale_range[0], self.scale_range[1])
+        
+        orig_w, orig_h = rgb_img.size
+        new_h = int(round(orig_h * scale_factor))
+        new_w = int(round(orig_w * scale_factor))
+        
+        rgb_img = TF.resize(rgb_img, (new_h, new_w))
+        seg_mask = TF.resize(seg_mask, (new_h, new_w), interpolation=T.InterpolationMode.NEAREST)
+        if depth_img is not None:
+            depth_img = TF.resize(depth_img, (new_h, new_w), interpolation=T.InterpolationMode.NEAREST)
+        if hha_img is not None:
+            hha_img = TF.resize(hha_img, (new_h, new_w))
+
+        return rgb_img, seg_mask, depth_img, hha_img
+    
+    def _apply_cropping(self, rgb_img, seg_mask, depth_img=None, hha_img=None):
         i, j, h, w = T.RandomCrop.get_params(rgb_img, (self.height, self.width))
         rgb_img = TF.crop(rgb_img, i, j, h, w)
         seg_mask = TF.crop(seg_mask, i, j, h, w)
@@ -206,21 +225,17 @@ class SyncTransformTrain:
         if hha_img is not None:
             hha_img = TF.crop(hha_img, i, j, h, w)
 
-        if random.random() < 0.5:
-            rgb_img = TF.hflip(rgb_img)
-            seg_mask = TF.hflip(seg_mask)
-            if depth_img is not None:
-                depth_img = TF.hflip(depth_img)
-            if hha_img is not None:
-                hha_img = TF.hflip(hha_img)
+        return rgb_img, seg_mask, depth_img, hha_img
 
-        imgs = [rgb_img, seg_mask]
+    def _apply_horizontal_flip(self, rgb_img, seg_mask, depth_img=None, hha_img=None):
+        rgb_img = TF.hflip(rgb_img)
+        seg_mask = TF.hflip(seg_mask)
         if depth_img is not None:
-            imgs.append(depth_img)
+            depth_img = TF.hflip(depth_img)
         if hha_img is not None:
-            imgs.append(hha_img)
+            hha_img = TF.hflip(hha_img)
 
-        return imgs
+        return rgb_img, seg_mask, depth_img, hha_img
 
 
 class SyncTransformTest:
@@ -229,14 +244,7 @@ class SyncTransformTest:
         self.width = width
 
     def __call__(self, rgb_img, seg_mask, depth_img=None, hha_img=None):
-        # Center crop or resize to target size for testing
-        rgb_img = TF.resize(rgb_img, (self.height, self.width))
-        seg_mask = TF.resize(seg_mask, (self.height, self.width), interpolation=T.InterpolationMode.NEAREST)
-        
-        if depth_img is not None:
-            depth_img = TF.resize(depth_img, (self.height, self.width), interpolation=T.InterpolationMode.NEAREST)
-        if hha_img is not None:
-            hha_img = TF.resize(hha_img, (self.height, self.width))
+        rgb_img, seg_mask, depth_img, hha_img = self._apply_resize(rgb_img, seg_mask, depth_img, hha_img)
 
         imgs = [rgb_img, seg_mask]
         if depth_img is not None:
@@ -245,6 +253,16 @@ class SyncTransformTest:
             imgs.append(hha_img)
 
         return imgs
+
+    def _apply_resize(self, rgb_img, seg_mask, depth_img=None, hha_img=None):
+        rgb_img = TF.resize(rgb_img, (self.height, self.width))
+        seg_mask = TF.resize(seg_mask, (self.height, self.width), interpolation=T.InterpolationMode.NEAREST)
+        if depth_img is not None:
+            depth_img = TF.resize(depth_img, (self.height, self.width), interpolation=T.InterpolationMode.NEAREST)
+        if hha_img is not None:
+            hha_img = TF.resize(hha_img, (self.height, self.width))
+
+        return rgb_img, seg_mask, depth_img, hha_img
 
 
 class TensorToLongMask(object):
