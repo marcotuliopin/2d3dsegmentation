@@ -100,11 +100,7 @@ def main(args, config):
         num_classes=config["data"]["num_classes"],
         name=config["model"][args.model]["name"],
         **config["model"][args.model]["config"],
-    )
-    model = model.to(device)
-    # with open(os.path.join(exp_dir, "model_summary.txt"), "w") as f:
-    #     f.write(str(summary(model, (1, 6, 240, 360))))
-
+    ).to(device)
     optimizer_params = model.get_optimizer_groups()
 
     # ------ Training Configurations ------
@@ -186,8 +182,6 @@ def set_seed(seed=42):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    # torch.backends.cudnn.deterministic = True
-    # torch.backends.cudnn.benchmark = False
 
 
 def configure_device():

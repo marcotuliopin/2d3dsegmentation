@@ -38,20 +38,12 @@ def parse_args(config):
         choices=[key for key in config["data"].keys()],
         help="Dataset to be used",
     )
-    # TODO: Add seed in every random operation
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=42,
-        help="Random seed for reproducibility",
-    )
     return parser.parse_args()
 
 
 def main(args, config):
     # Configure CUDA
     device = configure_device()
-    # set_seed(args.seed)
 
     # Make sure the experiment exists
     exp_dir = os.path.join(config["output"]["directories"]["checkpoints"], args.experiment_name)
@@ -121,17 +113,6 @@ def main(args, config):
         f.write("\nIoU por classe:\n")
         for i in range(exp_config["num_classes"]):
             f.write(f"  Classe {i}: {results['class_iou'][i]:.4f}\n")
-
-    # vis_path = os.path.join(plots_dir, "predictions.png")
-    # visualize_predictions(
-    #     model,
-    #     test_loader,
-    #     device,
-    #     num_samples=4,
-    #     save_path=vis_path,
-    #     rgb_only=exp_config["model"]["rgb_only"],
-    #     use_hha=exp_config["model"]["use_hha"],
-    # )
 
 
 def compute_segmentation_metrics(preds, labels, num_classes, ignore_index=255):
@@ -217,16 +198,6 @@ def compute_model_stats(model, loader, device, exp_config):
     
     gflops = macs / 1e9 / 2
     return gflops, params
-
-
-def set_seed(seed=42):
-    os.environ['PYTHONHASHSEED'] = str(seed)
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
 
 
 def configure_device():
